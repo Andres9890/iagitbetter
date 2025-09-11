@@ -408,9 +408,9 @@ class GitArchiver:
             <li>First Commit: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
             <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
-        <p>To restore the repository download the bundle:</p>
+        <p>To restore the repository, download the bundle:</p>
         <pre><code>wget https://archive.org/download/{identifier}/{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle</code></pre>
-        <p>and run:</p>
+        <p>And then run:</p>
         <pre><code>git clone {self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle</code></pre>
         """
         
