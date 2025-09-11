@@ -379,7 +379,7 @@ class GitArchiver:
             'gitsite': self.repo_data['git_site'],
             'language': self.repo_data.get('language', 'Unknown'),
             'identifier': identifier,
-            'uploader': f"iagitbetter Git Repository Mirroring Application {__version__}"
+            'scanner': f"iagitbetter Git Repository Mirroring Application {__version__}"
         }
         
         # Add additional metadata from API if available
@@ -394,13 +394,13 @@ class GitArchiver:
         if self.repo_data.get('homepage'):
             metadata['homepage'] = self.repo_data['homepage']
         if self.repo_data.get('default_branch'):
-            metadata['default_branch'] = self.repo_data['default_branch']
+            metadata['defaultbranch'] = self.repo_data['default_branch']
         if self.repo_data.get('archived'):
-            metadata['repo_archived'] = str(self.repo_data['archived'])
+            metadata['repoarchived'] = str(self.repo_data['archived'])
         if self.repo_data.get('fork'):
-            metadata['is_fork'] = str(self.repo_data['fork'])
+            metadata['isfork'] = str(self.repo_data['fork'])
         if self.repo_data.get('private') is not None:
-            metadata['repo_private'] = str(self.repo_data['private'])
+            metadata['repoprivate'] = str(self.repo_data['private'])
         
         # Add any additional custom metadata
         if custom_metadata:
