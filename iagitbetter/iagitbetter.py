@@ -173,9 +173,25 @@ class GitArchiver:
                 'ssh_url': api_data.get('ssh_url', ''),
                 'svn_url': api_data.get('svn_url', ''),
                 'mirror_url': api_data.get('mirror_url', ''),
-                'visibility': api_data.get('visibility', 'public')
+                'visibility': api_data.get('visibility', 'public'),
+                'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
             })
         elif domain == 'gitlab.com':
+            # Handle GitLab avatar URL - prefer project-level, then namespace, handle relative URLs
+            avatar_url = ''
+            
+            # Try project-level avatar first
+            if api_data.get('avatar_url'):
+                avatar_url = api_data['avatar_url']
+            # Fall back to namespace avatar for group-owned projects
+            elif api_data.get('namespace', {}).get('avatar_url'):
+                avatar_url = api_data['namespace']['avatar_url']
+            
+            # Handle relative URLs by prefixing with instance URL
+            if avatar_url and not avatar_url.startswith(('http://', 'https://')):
+                instance_url = f"https://{domain}"
+                avatar_url = f"{instance_url}{avatar_url}" if avatar_url.startswith('/') else f"{instance_url}/{avatar_url}"
+            
             self.repo_data.update({
                 'description': api_data.get('description', ''),
                 'created_at': api_data.get('created_at', ''),
@@ -200,7 +216,8 @@ class GitArchiver:
                 'visibility': api_data.get('visibility', 'public'),
                 'merge_requests_enabled': api_data.get('merge_requests_enabled', False),
                 'ci_enabled': api_data.get('builds_enabled', False),
-                'shared_runners_enabled': api_data.get('shared_runners_enabled', False)
+                'shared_runners_enabled': api_data.get('shared_runners_enabled', False),
+                'avatar_url': avatar_url
             })
         elif domain == 'bitbucket.org':
             self.repo_data.update({
@@ -219,7 +236,8 @@ class GitArchiver:
                 'mainbranch': api_data.get('mainbranch', {}).get('name', 'main'),
                 'project': api_data.get('project', {}).get('name', '') if api_data.get('project') else '',
                 'owner_type': api_data.get('owner', {}).get('type', ''),
-                'owner_display_name': api_data.get('owner', {}).get('display_name', '')
+                'owner_display_name': api_data.get('owner', {}).get('display_name', ''),
+                'avatar_url': api_data.get('owner', {}).get('links', {}).get('avatar', {}).get('href', '') if api_data.get('owner') else ''
             })
         elif domain in ['codeberg.org', 'gitea.com']:
             # Gitea/Forgejo API (Codeberg uses Forgejo)
@@ -251,8 +269,61 @@ class GitArchiver:
                 'permissions': api_data.get('permissions', {}),
                 'internal_tracker': api_data.get('internal_tracker', {}),
                 'external_tracker': api_data.get('external_tracker', {}),
-                'external_wiki': api_data.get('external_wiki', {})
+                'external_wiki': api_data.get('external_wiki', {}),
+                'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
             })
+    
+    def download_avatar(self, repo_path):
+        """Download user avatar if available and save with username as filename"""
+        avatar_url = self.repo_data.get('avatar_url', '')
+        if not avatar_url:
+            if self.verbose:
+                print("   No avatar URL available for this user")
+            return None
+        
+        try:
+            if self.verbose:
+                print(f"   Downloading user avatar from {self.repo_data['git_site']}")
+            
+            # Get the image
+            response = requests.get(avatar_url, stream=True, timeout=10)
+            response.raise_for_status()
+            
+            # Determine file extension from Content-Type or URL
+            content_type = response.headers.get('content-type', '').lower()
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                ext = '.jpg'
+            elif 'png' in content_type:
+                ext = '.png'
+            elif 'gif' in content_type:
+                ext = '.gif'
+            elif 'webp' in content_type:
+                ext = '.webp'
+            else:
+                # Try to guess from URL
+                if avatar_url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                    ext = '.' + avatar_url.split('.')[-1].lower()
+                else:
+                    ext = '.jpg'  # Default fallback
+            
+            # Save with username as filename
+            username = self.repo_data['owner']
+            avatar_filename = f"{username}{ext}"
+            avatar_path = os.path.join(repo_path, avatar_filename)
+            
+            with open(avatar_path, 'wb') as f:
+                response.raw.decode_content = True
+                shutil.copyfileobj(response.raw, f)
+            
+            if self.verbose:
+                print(f"   Avatar saved as: {avatar_filename}")
+            
+            return avatar_filename
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"   Could not download avatar: {e}")
+            return None
     
     def clone_repository(self, repo_url):
         """Clone the git repository to a temporary directory."""
@@ -285,6 +356,9 @@ class GitArchiver:
                 if self.verbose:
                     print(f"   Could not get first commit date: {e}")
                 self.repo_data['first_commit_date'] = datetime.now()
+            
+            # Download avatar after successful clone
+            self.download_avatar(repo_path)
             
             return repo_path
         except Exception as e:
