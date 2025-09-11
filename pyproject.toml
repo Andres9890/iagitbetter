@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iagitbetter"
+version = "1.0.0"
+description = "Archiving any git repository to the Internet Archive"
+readme = "README.md"
+authors = [
+    { name = "Andres99" }
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["git", "archive", "internet-archive", "github", "gitlab", "bitbucket", "repository", "backup"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Topic :: System :: Archiving"
+]
+dependencies = [
+    "requests>=2.32.5",
+    "internetarchive>=5.5.1",
+    "GitPython>=3.1.45",
+    "markdown2>=2.5.4"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "black",
+    "flake8"
+]
+
+[project.urls]
+Homepage = "https://github.com/Andres9890/iagitbetter"
+
+[project.scripts]
+iagitbetter = "iagitbetter:iagitbetter.main"
