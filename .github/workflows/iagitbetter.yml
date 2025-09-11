@@ -44,4 +44,4 @@ jobs:
 
     - name: Run iagitbetter
       run: |
-        tubeup "${{ github.event.inputs.url }}"
+        iagitbetter "${{ github.event.inputs.url }}"
