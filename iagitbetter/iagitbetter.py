@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -18,6 +18,7 @@ import tempfile
 import re
 import subprocess
 import stat
+import urllib.request
 from datetime import datetime
 from urllib.parse import urlparse
 from pathlib import Path
@@ -26,6 +27,49 @@ import internetarchive
 from internetarchive.config import parse_config_file
 import git
 from markdown2 import markdown_path
+
+def get_latest_pypi_version(package_name="iagitbetter"):
+    """
+    Request PyPI for the latest version
+    Returns the version string, or None if it cannot be determined
+    """
+    try:
+        url = f"https://pypi.org/pypi/{package_name}/json"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.load(response)
+            return data["info"]["version"]
+    except Exception:
+        return None
+
+def check_for_updates(current_version, verbose=True):
+    """
+    Check if a newer version is available on PyPI
+    """
+    if not verbose:
+        return  # Skip version check in quiet mode
+    
+    try:
+        # Remove 'v' prefix if present for comparison
+        current_clean = current_version.lstrip('v')
+        latest_version = get_latest_pypi_version("iagitbetter")
+        
+        if latest_version and latest_version != current_clean:
+            # Simple version comparison (works for semantic versioning)
+            current_parts = [int(x) for x in current_clean.split('.')]
+            latest_parts = [int(x) for x in latest_version.split('.')]
+            
+            # Pad shorter version with zeros
+            max_len = max(len(current_parts), len(latest_parts))
+            current_parts.extend([0] * (max_len - len(current_parts)))
+            latest_parts.extend([0] * (max_len - len(latest_parts)))
+            
+            if latest_parts > current_parts:
+                print(f"Update available: {latest_version} (current is v{current_version})")
+                print(f"   upgrade with: pip install --upgrade iagitbetter")
+                print()
+    except Exception:
+        # Silently ignore any errors in version checking
+        pass
 
 class GitArchiver:
     def __init__(self, verbose=True, ia_config_path=None):
@@ -552,9 +596,13 @@ class GitArchiver:
         
         return custom_meta
     
-    def run(self, repo_url, custom_metadata_string=None, verbose=True):
+    def run(self, repo_url, custom_metadata_string=None, verbose=True, check_updates=True):
         """Main execution flow."""
         self.verbose = verbose
+        
+        # Check for updates if enabled
+        if check_updates and verbose:
+            check_for_updates(__version__, verbose=True)
         
         # Check IA credentials
         self.check_ia_credentials()
@@ -602,6 +650,8 @@ Examples:
                        help='Custom metadata in format: key1:value1,key2:value2')
     parser.add_argument('--quiet', '-q', action='store_true',
                        help='Suppress verbose output')
+    parser.add_argument('--no-update-check', action='store_true',
+                       help='Skip checking for updates on PyPI')
     parser.add_argument('--version', '-v', 
                        action='version', 
                        version=f'%(prog)s {__version__}')
@@ -611,7 +661,12 @@ Examples:
     # Create archiver instance and run
     archiver = GitArchiver(verbose=not args.quiet)
     try:
-        identifier, metadata = archiver.run(args.repo_url, args.metadata, verbose=not args.quiet)
+        identifier, metadata = archiver.run(
+            args.repo_url, 
+            args.metadata, 
+            verbose=not args.quiet,
+            check_updates=not args.no_update_check
+        )
         if identifier:
             print("\n" + "="*60)
             print("Archive complete")

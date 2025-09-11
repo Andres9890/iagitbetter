@@ -31,6 +31,7 @@ import sys
 import shutil
 import argparse
 import json
+import urllib.request
 from datetime import datetime
 
 # Import from the iagitbetter module
@@ -44,6 +45,49 @@ PROGRAM_DESCRIPTION = '''A tool for archiving any git repository to the Internet
                        The script downloads the git repository, creates a git bundle, uploads
                        all files preserving structure, and archives to archive.org
                        Based on https://github.com/gdamdam/iagitup'''
+
+def get_latest_pypi_version(package_name="iagitbetter"):
+    """
+    Request PyPI for the latest version
+    Returns the version string, or None if it cannot be determined
+    """
+    try:
+        url = f"https://pypi.org/pypi/{package_name}/json"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.load(response)
+            return data["info"]["version"]
+    except Exception:
+        return None
+
+def check_for_updates(current_version, verbose=True):
+    """
+    Check if a newer version is available on PyPI
+    """
+    if not verbose:
+        return  # Skip version check in quiet mode
+    
+    try:
+        # Remove 'v' prefix if present for comparison
+        current_clean = current_version.lstrip('v')
+        latest_version = get_latest_pypi_version("iagitbetter")
+        
+        if latest_version and latest_version != current_clean:
+            # Simple version comparison (works for semantic versioning)
+            current_parts = [int(x) for x in current_clean.split('.')]
+            latest_parts = [int(x) for x in latest_version.split('.')]
+            
+            # Pad shorter version with zeros
+            max_len = max(len(current_parts), len(latest_parts))
+            current_parts.extend([0] * (max_len - len(current_parts)))
+            latest_parts.extend([0] * (max_len - len(latest_parts)))
+            
+            if latest_parts > current_parts:
+                print(f"Update available: {latest_version} (current is {current_version})")
+                print(f"   Run: pip install --upgrade iagitbetter")
+                print()
+    except Exception:
+        # Silently ignore any errors in version checking
+        pass
 
 # Configure argparser
 parser = argparse.ArgumentParser(
@@ -78,6 +122,8 @@ parser.add_argument('--quiet', '-q', action='store_true',
 parser.add_argument('--version', '-v', action='version', version=__version__)
 parser.add_argument('--bundle-only', action='store_true', 
                    help="only upload git bundle, not all files (iagitup compatibility mode)")
+parser.add_argument('--no-update-check', action='store_true',
+                   help='Skip checking for updates on PyPI')
 
 args = parser.parse_args()
 
@@ -100,6 +146,10 @@ def main():
         print(f"{__main_name__} {__version__}")
         print("=" * 60)
         print()
+        
+        # Check for updates unless disabled
+        if not args.no_update_check:
+            check_for_updates(__version__, verbose=True)
     
     # Parse custom metadata if provided
     if custom_metadata is not None:
