@@ -263,17 +263,17 @@ class GitArchiver:
         metadata = {
             'title': item_name,
             'mediatype': 'software',
-            'collection': 'open_source_software',
+            'collection': 'opensource_media',
             'description': description,
             'creator': self.repo_data['owner'],
             'date': timestamp.strftime('%Y-%m-%d'),
             'year': timestamp.year,
-            'subject': f"git;code;software;{self.repo_data['git_site']};repository;archive;{self.repo_data['owner']};{self.repo_data['repo_name']}",
+            'subject': f"git;code;{self.repo_data['git_site']};repository;repo;{self.repo_data['owner']};{self.repo_data['repo_name']}",
             'originalrepo': self.repo_data['url'],
             'gitsite': self.repo_data['git_site'],
             'language': self.repo_data.get('language', 'Unknown'),
             'identifier': identifier,
-            'uploader': f"iagitbetter {__version__}"
+            'uploader': f"iagitbetter Git Repository Mirroring Application {__version__}"
         }
         
         # Add any additional custom metadata
