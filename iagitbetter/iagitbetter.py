@@ -99,21 +99,111 @@ class GitArchiver:
             self.repo_data.update({
                 'description': api_data.get('description', ''),
                 'created_at': api_data.get('created_at', ''),
+                'updated_at': api_data.get('updated_at', ''),
                 'pushed_at': api_data.get('pushed_at', ''),
                 'language': api_data.get('language', ''),
                 'stars': api_data.get('stargazers_count', 0),
                 'forks': api_data.get('forks_count', 0),
+                'watchers': api_data.get('watchers_count', 0),
+                'subscribers': api_data.get('subscribers_count', 0),
+                'open_issues': api_data.get('open_issues_count', 0),
                 'homepage': api_data.get('homepage', ''),
-                'topics': api_data.get('topics', [])
+                'topics': api_data.get('topics', []),
+                'license': api_data.get('license', {}).get('name', '') if api_data.get('license') else '',
+                'default_branch': api_data.get('default_branch', 'main'),
+                'has_wiki': api_data.get('has_wiki', False),
+                'has_pages': api_data.get('has_pages', False),
+                'has_projects': api_data.get('has_projects', False),
+                'has_issues': api_data.get('has_issues', False),
+                'archived': api_data.get('archived', False),
+                'disabled': api_data.get('disabled', False),
+                'private': api_data.get('private', False),
+                'fork': api_data.get('fork', False),
+                'size': api_data.get('size', 0),
+                'network_count': api_data.get('network_count', 0),
+                'clone_url': api_data.get('clone_url', ''),
+                'ssh_url': api_data.get('ssh_url', ''),
+                'svn_url': api_data.get('svn_url', ''),
+                'mirror_url': api_data.get('mirror_url', ''),
+                'visibility': api_data.get('visibility', 'public')
             })
         elif domain == 'gitlab.com':
             self.repo_data.update({
                 'description': api_data.get('description', ''),
                 'created_at': api_data.get('created_at', ''),
+                'updated_at': api_data.get('updated_at', ''),
                 'pushed_at': api_data.get('last_activity_at', ''),
                 'stars': api_data.get('star_count', 0),
                 'forks': api_data.get('forks_count', 0),
-                'topics': api_data.get('topics', [])
+                'topics': api_data.get('topics', []),
+                'default_branch': api_data.get('default_branch', 'main'),
+                'archived': api_data.get('archived', False),
+                'private': api_data.get('visibility', 'public') != 'public',
+                'fork': api_data.get('forked_from_project') is not None,
+                'open_issues': api_data.get('open_issues_count', 0),
+                'has_wiki': api_data.get('wiki_enabled', False),
+                'has_pages': api_data.get('pages_enabled', False),
+                'has_issues': api_data.get('issues_enabled', False),
+                'clone_url': api_data.get('http_url_to_repo', ''),
+                'ssh_url': api_data.get('ssh_url_to_repo', ''),
+                'web_url': api_data.get('web_url', ''),
+                'namespace': api_data.get('namespace', {}).get('name', ''),
+                'path_with_namespace': api_data.get('path_with_namespace', ''),
+                'visibility': api_data.get('visibility', 'public'),
+                'merge_requests_enabled': api_data.get('merge_requests_enabled', False),
+                'ci_enabled': api_data.get('builds_enabled', False),
+                'shared_runners_enabled': api_data.get('shared_runners_enabled', False)
+            })
+        elif domain == 'bitbucket.org':
+            self.repo_data.update({
+                'description': api_data.get('description', ''),
+                'created_at': api_data.get('created_on', ''),
+                'updated_at': api_data.get('updated_on', ''),
+                'language': api_data.get('language', ''),
+                'private': api_data.get('is_private', False),
+                'fork': api_data.get('parent') is not None,
+                'size': api_data.get('size', 0),
+                'has_wiki': api_data.get('has_wiki', False),
+                'has_issues': api_data.get('has_issues', False),
+                'clone_url': api_data.get('links', {}).get('clone', [{}])[0].get('href', ''),
+                'homepage': api_data.get('website', ''),
+                'scm': api_data.get('scm', 'git'),
+                'mainbranch': api_data.get('mainbranch', {}).get('name', 'main'),
+                'project': api_data.get('project', {}).get('name', '') if api_data.get('project') else '',
+                'owner_type': api_data.get('owner', {}).get('type', ''),
+                'owner_display_name': api_data.get('owner', {}).get('display_name', '')
+            })
+        elif domain in ['codeberg.org', 'gitea.com']:
+            # Gitea/Forgejo API (Codeberg uses Forgejo)
+            self.repo_data.update({
+                'description': api_data.get('description', ''),
+                'created_at': api_data.get('created_at', ''),
+                'updated_at': api_data.get('updated_at', ''),
+                'language': api_data.get('language', ''),
+                'stars': api_data.get('stars_count', 0),
+                'forks': api_data.get('forks_count', 0),
+                'watchers': api_data.get('watchers_count', 0),
+                'open_issues': api_data.get('open_issues_count', 0),
+                'homepage': api_data.get('website', ''),
+                'default_branch': api_data.get('default_branch', 'main'),
+                'archived': api_data.get('archived', False),
+                'private': api_data.get('private', False),
+                'fork': api_data.get('fork', False),
+                'size': api_data.get('size', 0),
+                'has_wiki': api_data.get('has_wiki', False),
+                'has_issues': api_data.get('has_issues', False),
+                'has_projects': api_data.get('has_projects', False),
+                'has_pull_requests': api_data.get('has_pull_requests', False),
+                'clone_url': api_data.get('clone_url', ''),
+                'ssh_url': api_data.get('ssh_url', ''),
+                'html_url': api_data.get('html_url', ''),
+                'mirror': api_data.get('mirror', False),
+                'template': api_data.get('template', False),
+                'empty': api_data.get('empty', False),
+                'permissions': api_data.get('permissions', {}),
+                'internal_tracker': api_data.get('internal_tracker', {}),
+                'external_tracker': api_data.get('external_tracker', {}),
+                'external_wiki': api_data.get('external_wiki', {})
             })
     
     def clone_repository(self, repo_url):
@@ -129,9 +219,20 @@ class GitArchiver:
             repo = git.Repo.clone_from(repo_url, repo_path)
             print(f"   Successfully cloned to {repo_path}")
             
-            # Get the last commit date
-            last_commit = repo.head.commit
-            self.repo_data['last_commit_date'] = datetime.fromtimestamp(last_commit.committed_date)
+            # Get the first commit date instead of the last
+            try:
+                # Get all commits and find the first one (oldest)
+                commits = list(repo.iter_commits(all=True))
+                if commits:
+                    first_commit = commits[-1]  # Last in the list is the first chronologically
+                    self.repo_data['first_commit_date'] = datetime.fromtimestamp(first_commit.committed_date)
+                    print(f"   First commit date: {self.repo_data['first_commit_date']}")
+                else:
+                    # Fallback if no commits found
+                    self.repo_data['first_commit_date'] = datetime.now()
+            except Exception as e:
+                print(f"   Warning: Could not get first commit date: {e}")
+                self.repo_data['first_commit_date'] = datetime.now()
             
             return repo_path
         except Exception as e:
@@ -223,15 +324,17 @@ class GitArchiver:
     
     def upload_to_ia(self, repo_path, custom_metadata=None):
         """Upload the repository to the Internet Archive"""
-        # Generate timestamps
-        now = datetime.now()
-        if 'last_commit_date' in self.repo_data:
-            timestamp = self.repo_data['last_commit_date']
-        else:
-            timestamp = now
+        # Generate timestamps - use current time for archival date and identifier
+        archive_date = datetime.now()
         
-        # Format: {repo-owner-username}-{repo-name}-%Y%m%d-%H%M%S
-        identifier = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{timestamp.strftime('%Y%m%d-%H%M%S')}"
+        # Use first commit date for the date metadata, fallback to archive date
+        if 'first_commit_date' in self.repo_data:
+            repo_date = self.repo_data['first_commit_date']
+        else:
+            repo_date = archive_date
+        
+        # Format identifier using archive date: {repo-owner-username}-{repo-name}-%Y%m%d-%H%M%S
+        identifier = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d-%H%M%S')}"
         
         # Item name: {repo-owner-username} - {repo-name}
         item_name = f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
@@ -247,7 +350,8 @@ class GitArchiver:
             <li>Git Provider: {self.repo_data['git_site'].title()}</li>
             <li>Owner: {self.repo_data['owner']}</li>
             <li>Repository Name: {self.repo_data['repo_name']}</li>
-            <li>Archived: {now.strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>First Commit: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
         <p>To restore the repository download the bundle:</p>
         <pre><code>wget https://archive.org/download/{identifier}/{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle</code></pre>
@@ -261,15 +365,15 @@ class GitArchiver:
         else:
             description = f"{readme_description}{description_footer}"
         
-        # Prepare metadata
+        # Prepare metadata - use first commit date for date field
         metadata = {
             'title': item_name,
             'mediatype': 'software',
             'collection': 'opensource_media',
             'description': description,
             'creator': self.repo_data['owner'],
-            'date': timestamp.strftime('%Y-%m-%d'),
-            'year': timestamp.year,
+            'date': repo_date.strftime('%Y-%m-%d'),  # First commit date
+            'year': repo_date.year,
             'subject': f"git;code;{self.repo_data['git_site']};repository;repo;{self.repo_data['owner']};{self.repo_data['repo_name']}",
             'originalrepo': self.repo_data['url'],
             'gitsite': self.repo_data['git_site'],
@@ -278,6 +382,26 @@ class GitArchiver:
             'uploader': f"iagitbetter Git Repository Mirroring Application {__version__}"
         }
         
+        # Add additional metadata from API if available
+        if self.repo_data.get('stars') is not None:
+            metadata['stars'] = str(self.repo_data['stars'])
+        if self.repo_data.get('forks') is not None:
+            metadata['forks'] = str(self.repo_data['forks'])
+        if self.repo_data.get('topics'):
+            metadata['topics'] = ';'.join(self.repo_data['topics'])
+        if self.repo_data.get('license'):
+            metadata['license'] = self.repo_data['license']
+        if self.repo_data.get('homepage'):
+            metadata['homepage'] = self.repo_data['homepage']
+        if self.repo_data.get('default_branch'):
+            metadata['default_branch'] = self.repo_data['default_branch']
+        if self.repo_data.get('archived'):
+            metadata['repo_archived'] = str(self.repo_data['archived'])
+        if self.repo_data.get('fork'):
+            metadata['is_fork'] = str(self.repo_data['fork'])
+        if self.repo_data.get('private') is not None:
+            metadata['repo_private'] = str(self.repo_data['private'])
+        
         # Add any additional custom metadata
         if custom_metadata:
             metadata.update(custom_metadata)
@@ -285,6 +409,8 @@ class GitArchiver:
         print(f"\nUploading to Internet Archive")
         print(f"   Identifier: {identifier}")
         print(f"   Title: {item_name}")
+        print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
+        print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
         
         try:
             # Get or create the item

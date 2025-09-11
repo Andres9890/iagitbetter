@@ -31,6 +31,7 @@ import sys
 import shutil
 import argparse
 import json
+from datetime import datetime
 
 # Import from the iagitbetter module
 try:
@@ -61,6 +62,8 @@ Key improvements over iagitup:
   - Clean naming: {owner} - {repo}
   - Adds originalrepo and gitsite metadata
   - Preserves directory structure
+  - Uses archive date for identifier consistency
+  - Records first commit date as repository date
     """
 )
 
@@ -127,6 +130,24 @@ def main():
             print(f"Identifier: {identifier}")
             print(f"Git Provider: {metadata['gitsite']}")
             print(f"Original Repository: {metadata['originalrepo']}")
+            
+            # Show dates information
+            if 'first_commit_date' in archiver.repo_data:
+                print(f"First Commit Date: {archiver.repo_data['first_commit_date'].strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Archive Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Show additional metadata if available
+            if metadata.get('stars'):
+                print(f"Stars: {metadata['stars']}")
+            if metadata.get('forks'):
+                print(f"Forks: {metadata['forks']}")
+            if metadata.get('language'):
+                print(f"Primary Language: {metadata['language']}")
+            if metadata.get('license'):
+                print(f"License: {metadata['license']}")
+            if metadata.get('topics'):
+                print(f"Topics: {metadata['topics']}")
+            
             print(f"Archived repository URL:")
             print(f"    https://archive.org/details/{identifier}")
             print(f"Archived git bundle file:")
