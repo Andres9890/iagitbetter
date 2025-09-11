@@ -13,6 +13,7 @@ setup(
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
     url='https://github.com/Andres9890/iagitbetter',
+    packages=find_packages(),
     license='GPL-3.0',
     keywords='git archive internet-archive github gitlab bitbucket repository backup',
     platforms='any',
@@ -28,7 +29,6 @@ setup(
         'Topic :: System :: Archiving',
     ],
     python_requires='>=3.9',
-    py_modules=['iagitbetter'],
     entry_points={
         'console_scripts': [
             'iagitbetter=iagitbetter:main',

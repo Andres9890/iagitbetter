@@ -44,4 +44,4 @@ dev = [
 Homepage = "https://github.com/Andres9890/iagitbetter"
 
 [project.scripts]
-iagitbetter = "iagitbetter:iagitbetter.main"
+iagitbetter = "iagitbetter:main"
