@@ -523,7 +523,8 @@ class GitArchiver:
         """Check if Internet Archive credentials are configured."""
         ia_config_paths = [
             os.path.expanduser('~/.ia'),
-            os.path.expanduser('~/.config/ia.ini')
+            os.path.expanduser('~/.config/ia.ini'),
+            os.path.expanduser('~/.config/internetarchive/ia.ini')
         ]
         
         if not any(os.path.exists(path) for path in ia_config_paths):

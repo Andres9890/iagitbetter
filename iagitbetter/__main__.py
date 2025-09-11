@@ -24,7 +24,7 @@ __copyright__  = "Copyright 2025, Andres99"
 __main_name__  = 'iagitbetter'
 __license__    = 'GPLv3'
 __status__     = "Production/Stable"
-__version__    = "v1.0.0"
+__version__    = "v1.0.1"
 
 import os
 import sys
