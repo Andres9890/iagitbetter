@@ -17,6 +17,7 @@ import json
 import tempfile
 import re
 import subprocess
+import stat
 from datetime import datetime
 from urllib.parse import urlparse
 from pathlib import Path
@@ -162,7 +163,7 @@ class GitArchiver:
     
     def get_all_files(self, repo_path):
         """Get all files in the repository, preserving directory structure."""
-        files_to_upload = []
+        files_to_upload = {}
         
         for root, dirs, files in os.walk(repo_path):
             # Skip .git directory
@@ -173,7 +174,8 @@ class GitArchiver:
                 file_path = os.path.join(root, file)
                 # Get relative path to preserve directory structure
                 relative_path = os.path.relpath(file_path, repo_path)
-                files_to_upload.append((file_path, relative_path))
+                # Use relative path as key for Internet Archive
+                files_to_upload[relative_path] = file_path
         
         return files_to_upload
     
@@ -293,37 +295,34 @@ class GitArchiver:
                 print(f"URL: https://archive.org/details/{identifier}")
                 return identifier, metadata
             
-            # Get all files to upload
-            files_to_upload = []
-            
-            # Add the bundle file
+            # Create the bundle file first
             bundle_path = self.create_git_bundle(repo_path)
-            if bundle_path:
-                files_to_upload.append(bundle_path)
+            bundle_filename = os.path.basename(bundle_path) if bundle_path else None
             
-            # Add all repository files preserving structure
+            # Get all repository files preserving structure
             print("Collecting all repository files...")
             repo_files = self.get_all_files(repo_path)
             
-            # Upload files
-            print(f"Uploading {len(repo_files) + 1} files to Internet Archive...")
+            # Prepare files for upload - use dictionary format for proper naming
+            files_to_upload = {}
             
-            # Upload bundle first
-            if bundle_path:
-                item.upload(bundle_path, metadata=metadata, retries=3, 
-                           request_kwargs=dict(timeout=9001))
+            # Add bundle file first
+            if bundle_path and os.path.exists(bundle_path):
+                files_to_upload[bundle_filename] = bundle_path
             
-            # Upload all other files with preserved directory structure
-            for file_path, relative_path in repo_files:
-                # Internet Archive will create directories automatically
-                # based on the file key (relative path)
-                print(f"   Uploading: {relative_path}")
-                item.upload(file_path, key=relative_path, retries=3,
-                           request_kwargs=dict(timeout=9001))
+            # Add all repository files with preserved directory structure
+            files_to_upload.update(repo_files)
+            
+            print(f"Uploading {len(files_to_upload)} files to Internet Archive...")
+            
+            # Upload all files at once with proper metadata
+            response = item.upload(files_to_upload, metadata=metadata, retries=3, 
+                                   request_kwargs=dict(timeout=9001))
             
             print(f"\nUpload completed successfully!")
             print(f"   Archive URL: https://archive.org/details/{identifier}")
-            print(f"   Bundle download: https://archive.org/download/{identifier}/{os.path.basename(bundle_path)}")
+            if bundle_filename:
+                print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
             
             return identifier, metadata
             
@@ -331,11 +330,26 @@ class GitArchiver:
             print(f"Error uploading to Internet Archive: {e}")
             return None, None
     
+    def handle_remove_readonly(self, func, path, exc):
+        """Error handler for Windows readonly files"""
+        if os.path.exists(path):
+            # Change the file to be writable and try again
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+    
     def cleanup(self):
-        """Clean up temporary files."""
+        """Clean up temporary files with Windows compatibility."""
         if self.temp_dir and os.path.exists(self.temp_dir):
             print("Cleaning up temporary files...")
-            shutil.rmtree(self.temp_dir)
+            try:
+                # On Windows, we need to handle read only files in .git directory
+                if os.name == 'nt':
+                    shutil.rmtree(self.temp_dir, onerror=self.handle_remove_readonly)
+                else:
+                    shutil.rmtree(self.temp_dir)
+            except Exception as e:
+                print(f"Warning: Could not completely clean up temporary files: {e}")
+                print(f"You may need to manually delete: {self.temp_dir}")
     
     def check_ia_credentials(self):
         """Check if Internet Archive credentials are configured."""

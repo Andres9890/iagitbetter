@@ -104,42 +104,50 @@ def main():
             print(f"Error parsing metadata: {e}")
             custom_meta_dict = None
     
-    # Extract repository information
-    print(f"Analyzing repository: {URL}")
-    archiver.extract_repo_info(URL)
-    print(f"   Repository: {archiver.repo_data['full_name']}")
-    print(f"   Git Provider: {archiver.repo_data['git_site']}")
-    print()
-    
-    # Clone the repository
-    print(f"Downloading {URL} repository...")
-    repo_path = archiver.clone_repository(URL)
-    
-    # Upload to Internet Archive
-    identifier, metadata = archiver.upload_to_ia(repo_path, custom_metadata=custom_meta_dict)
-    
-    # Cleanup
-    archiver.cleanup()
-    
-    # Output results
-    if identifier:
-        print("\nUpload finished, Item information:")
-        print("=" * 60)
-        print(f"Title: {metadata['title']}")
-        print(f"Identifier: {identifier}")
-        print(f"Git Provider: {metadata['gitsite']}")
-        print(f"Original Repository: {metadata['originalrepo']}")
-        print(f"Archived repository URL:")
-        print(f"    https://archive.org/details/{identifier}")
-        print(f"Archived git bundle file:")
-        bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
-        print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
-        print("=" * 60)
-        print("Archive complete")
+    try:
+        # Extract repository information
+        print(f"Analyzing repository: {URL}")
+        archiver.extract_repo_info(URL)
+        print(f"   Repository: {archiver.repo_data['full_name']}")
+        print(f"   Git Provider: {archiver.repo_data['git_site']}")
         print()
-    else:
-        print("\nUpload failed. Please check the errors above")
+        
+        # Clone the repository
+        print(f"Downloading {URL} repository...")
+        repo_path = archiver.clone_repository(URL)
+        
+        # Upload to Internet Archive
+        identifier, metadata = archiver.upload_to_ia(repo_path, custom_metadata=custom_meta_dict)
+        
+        # Output results
+        if identifier:
+            print("\nUpload finished, Item information:")
+            print("=" * 60)
+            print(f"Title: {metadata['title']}")
+            print(f"Identifier: {identifier}")
+            print(f"Git Provider: {metadata['gitsite']}")
+            print(f"Original Repository: {metadata['originalrepo']}")
+            print(f"Archived repository URL:")
+            print(f"    https://archive.org/details/{identifier}")
+            print(f"Archived git bundle file:")
+            bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
+            print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
+            print("=" * 60)
+            print("Archive complete")
+            print()
+        else:
+            print("\nUpload failed. Please check the errors above")
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user")
         sys.exit(1)
+    except Exception as e:
+        print(f"\nError: {e}")
+        sys.exit(1)
+    finally:
+        # Always cleanup
+        archiver.cleanup()
 
 
 if __name__ == '__main__':
