@@ -23,13 +23,16 @@ from urllib.parse import urlparse
 from pathlib import Path
 import requests
 import internetarchive
+from internetarchive.config import parse_config_file
 import git
 from markdown2 import markdown_path
 
 class GitArchiver:
-    def __init__(self):
+    def __init__(self, verbose=True, ia_config_path=None):
         self.temp_dir = None
         self.repo_data = {}
+        self.verbose = verbose
+        self.ia_config_path = ia_config_path
         
     def extract_repo_info(self, repo_url):
         """Extract repository information from any git URL"""
@@ -91,7 +94,8 @@ class GitArchiver:
                     api_data = response.json()
                     self._parse_api_response(api_data, domain)
             except Exception as e:
-                print(f"Note: Could not fetch API metadata: {e}")
+                if self.verbose:
+                    print(f"Note: Could not fetch API metadata: {e}")
     
     def _parse_api_response(self, api_data, domain):
         """Parse API response based on the git provider"""
@@ -208,7 +212,8 @@ class GitArchiver:
     
     def clone_repository(self, repo_url):
         """Clone the git repository to a temporary directory."""
-        print(f"Cloning repository from {repo_url}...")
+        if self.verbose:
+            print(f"Cloning repository from {repo_url}...")
         
         # Create temporary directory
         self.temp_dir = tempfile.mkdtemp(prefix='iagitbetter_')
@@ -217,7 +222,8 @@ class GitArchiver:
         try:
             # Clone the repository
             repo = git.Repo.clone_from(repo_url, repo_path)
-            print(f"   Successfully cloned to {repo_path}")
+            if self.verbose:
+                print(f"   Successfully cloned to {repo_path}")
             
             # Get the first commit date instead of the last
             try:
@@ -226,12 +232,14 @@ class GitArchiver:
                 if commits:
                     first_commit = commits[-1]  # Last in the list is the first chronologically
                     self.repo_data['first_commit_date'] = datetime.fromtimestamp(first_commit.committed_date)
-                    print(f"   First commit date: {self.repo_data['first_commit_date']}")
+                    if self.verbose:
+                        print(f"   First commit date: {self.repo_data['first_commit_date']}")
                 else:
                     # Fallback if no commits found
                     self.repo_data['first_commit_date'] = datetime.now()
             except Exception as e:
-                print(f"   Warning: Could not get first commit date: {e}")
+                if self.verbose:
+                    print(f"   Could not get first commit date: {e}")
                 self.repo_data['first_commit_date'] = datetime.now()
             
             return repo_path
@@ -242,7 +250,8 @@ class GitArchiver:
     
     def create_git_bundle(self, repo_path):
         """Create a git bundle of the repository."""
-        print("Creating git bundle...")
+        if self.verbose:
+            print("Creating git bundle...")
         
         bundle_name = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
         bundle_path = os.path.join(repo_path, bundle_name)
@@ -256,7 +265,8 @@ class GitArchiver:
             subprocess.check_call(['git', 'bundle', 'create', bundle_path, '--all'])
             
             os.chdir(original_dir)
-            print(f"   Bundle created: {bundle_name}")
+            if self.verbose:
+                print(f"   Bundle created: {bundle_name}")
             return bundle_path
         except Exception as e:
             print(f"Error creating bundle: {e}")
@@ -297,7 +307,8 @@ class GitArchiver:
                     description = description.replace('\n', '')
                     return description
                 except Exception as e:
-                    print(f"Warning: Could not parse README.md: {e}")
+                    if self.verbose:
+                        print(f"Could not parse README.md: {e}")
                     return "This git repository doesn't have a README.md file"
         
         # Fallback for other readme formats
@@ -406,19 +417,21 @@ class GitArchiver:
         if custom_metadata:
             metadata.update(custom_metadata)
         
-        print(f"\nUploading to Internet Archive")
-        print(f"   Identifier: {identifier}")
-        print(f"   Title: {item_name}")
-        print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
-        print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
+        if self.verbose:
+            print(f"\nUploading to Internet Archive")
+            print(f"   Identifier: {identifier}")
+            print(f"   Title: {item_name}")
+            print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
+            print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
         
         try:
             # Get or create the item
             item = internetarchive.get_item(identifier)
             
             if item.exists:
-                print("\nThis repository version already exists on the Internet Archive")
-                print(f"URL: https://archive.org/details/{identifier}")
+                if self.verbose:
+                    print("\nThis repository version already exists on the Internet Archive")
+                    print(f"URL: https://archive.org/details/{identifier}")
                 return identifier, metadata
             
             # Create the bundle file first
@@ -426,7 +439,8 @@ class GitArchiver:
             bundle_filename = os.path.basename(bundle_path) if bundle_path else None
             
             # Get all repository files preserving structure
-            print("Collecting all repository files...")
+            if self.verbose:
+                print("Collecting all repository files...")
             repo_files = self.get_all_files(repo_path)
             
             # Prepare files for upload - use dictionary format for proper naming
@@ -439,16 +453,43 @@ class GitArchiver:
             # Add all repository files with preserved directory structure
             files_to_upload.update(repo_files)
             
-            print(f"Uploading {len(files_to_upload)} files to Internet Archive...")
+            if self.verbose:
+                print(f"Uploading {len(files_to_upload)} files to Internet Archive")
+                print("This may take some time depending on repository size and connection speed")
             
-            # Upload all files at once with proper metadata
-            response = item.upload(files_to_upload, metadata=metadata, retries=3, 
-                                   request_kwargs=dict(timeout=9001))
+            # Parse internetarchive configuration file to get credentials
+            access_key = None
+            secret_key = None
             
-            print(f"\nUpload completed successfully!")
-            print(f"   Archive URL: https://archive.org/details/{identifier}")
-            if bundle_filename:
-                print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
+            try:
+                parsed_ia_config = parse_config_file(self.ia_config_path)[2]['s3']
+                access_key = parsed_ia_config.get('access')
+                secret_key = parsed_ia_config.get('secret')
+            except Exception as e:
+                if self.verbose:
+                    print(f"Note: Using default IA credentials (could not parse config: {e})")
+            
+            # Upload all files at once with proper metadata and verbose output
+            upload_kwargs = {
+                'metadata': metadata,
+                'retries': 9001,  # Use high retry count
+                'request_kwargs': dict(timeout=(9001, 9001)),  # Use tuple timeout
+                'verbose': self.verbose,  # Enable verbose output
+                'delete': False  # Don't delete local files after upload
+            }
+            
+            # Add credentials if available
+            if access_key and secret_key:
+                upload_kwargs['access_key'] = access_key
+                upload_kwargs['secret_key'] = secret_key
+            
+            response = item.upload(files_to_upload, **upload_kwargs)
+            
+            if self.verbose:
+                print(f"\nUpload completed successfully!")
+                print(f"   Archive URL: https://archive.org/details/{identifier}")
+                if bundle_filename:
+                    print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
             
             return identifier, metadata
             
@@ -466,7 +507,8 @@ class GitArchiver:
     def cleanup(self):
         """Clean up temporary files with Windows compatibility."""
         if self.temp_dir and os.path.exists(self.temp_dir):
-            print("Cleaning up temporary files...")
+            if self.verbose:
+                print("Cleaning up temporary files...")
             try:
                 # On Windows, we need to handle read only files in .git directory
                 if os.name == 'nt':
@@ -509,8 +551,10 @@ class GitArchiver:
         
         return custom_meta
     
-    def run(self, repo_url, custom_metadata_string=None):
+    def run(self, repo_url, custom_metadata_string=None, verbose=True):
         """Main execution flow."""
+        self.verbose = verbose
+        
         # Check IA credentials
         self.check_ia_credentials()
         
@@ -518,10 +562,12 @@ class GitArchiver:
         custom_metadata = self.parse_custom_metadata(custom_metadata_string)
         
         # Extract repository information
-        print(f"\n:: Analyzing repository: {repo_url}")
+        if self.verbose:
+            print(f"\n:: Analyzing repository: {repo_url}")
         self.extract_repo_info(repo_url)
-        print(f"   Repository: {self.repo_data['full_name']}")
-        print(f"   Git Provider: {self.repo_data['git_site']}")
+        if self.verbose:
+            print(f"   Repository: {self.repo_data['full_name']}")
+            print(f"   Git Provider: {self.repo_data['git_site']}")
         
         # Clone repository
         repo_path = self.clone_repository(repo_url)
@@ -545,6 +591,7 @@ Examples:
   %(prog)s https://gitlab.com/user/repo
   %(prog)s https://bitbucket.org/user/repo
   %(prog)s --metadata="license:MIT,topic:python" https://github.com/user/repo
+  %(prog)s --quiet https://github.com/user/repo
         """
     )
     
@@ -552,6 +599,8 @@ Examples:
                        help='Git repository URL to archive')
     parser.add_argument('--metadata', '-m', 
                        help='Custom metadata in format: key1:value1,key2:value2')
+    parser.add_argument('--quiet', '-q', action='store_true',
+                       help='Suppress verbose output')
     parser.add_argument('--version', '-v', 
                        action='version', 
                        version=f'%(prog)s {__version__}')
@@ -559,9 +608,9 @@ Examples:
     args = parser.parse_args()
     
     # Create archiver instance and run
-    archiver = GitArchiver()
+    archiver = GitArchiver(verbose=not args.quiet)
     try:
-        identifier, metadata = archiver.run(args.repo_url, args.metadata)
+        identifier, metadata = archiver.run(args.repo_url, args.metadata, verbose=not args.quiet)
         if identifier:
             print("\n" + "="*60)
             print("Archive complete")

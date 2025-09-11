@@ -55,6 +55,7 @@ Examples:
   %(prog)s https://gitlab.com/user/repo
   %(prog)s https://bitbucket.org/user/repo
   %(prog)s --metadata="license:MIT,topic:python" https://github.com/user/repo
+  %(prog)s --quiet https://github.com/user/repo
 
 Key improvements over iagitup:
   - Works with ALL git providers (not just GitHub)
@@ -64,6 +65,7 @@ Key improvements over iagitup:
   - Preserves directory structure
   - Uses archive date for identifier consistency
   - Records first commit date as repository date
+  - Shows detailed upload progress like tubeup
     """
 )
 
@@ -71,6 +73,8 @@ parser.add_argument('giturl', type=str,
                    help='Git repository URL to archive (works with any git provider)')
 parser.add_argument('--metadata', '-m', default=None, type=str, required=False, 
                    help="custom metadata to add to the archive.org item (format: key1:value1,key2:value2)")
+parser.add_argument('--quiet', '-q', action='store_true',
+                   help='Suppress verbose output (only show errors and final results)')
 parser.add_argument('--version', '-v', action='version', version=__version__)
 parser.add_argument('--bundle-only', action='store_true', 
                    help="only upload git bundle, not all files (iagitup compatibility mode)")
@@ -80,8 +84,9 @@ args = parser.parse_args()
 def main():
     """Main entry point for iagitbetter"""
     
-    # Create archiver instance
-    archiver = iagitbetter.GitArchiver()
+    # Create archiver instance with verbose setting
+    verbose = not args.quiet
+    archiver = iagitbetter.GitArchiver(verbose=verbose)
     
     # Check IA credentials first
     archiver.check_ia_credentials()
@@ -90,10 +95,11 @@ def main():
     custom_metadata = args.metadata
     custom_meta_dict = None
     
-    print("=" * 60)
-    print(f"{__main_name__} {__version__}")
-    print("=" * 60)
-    print()
+    if verbose:
+        print("=" * 60)
+        print(f"{__main_name__} {__version__}")
+        print("=" * 60)
+        print()
     
     # Parse custom metadata if provided
     if custom_metadata is not None:
@@ -109,14 +115,17 @@ def main():
     
     try:
         # Extract repository information
-        print(f"Analyzing repository: {URL}")
+        if verbose:
+            print(f"Analyzing repository: {URL}")
         archiver.extract_repo_info(URL)
-        print(f"   Repository: {archiver.repo_data['full_name']}")
-        print(f"   Git Provider: {archiver.repo_data['git_site']}")
-        print()
+        if verbose:
+            print(f"   Repository: {archiver.repo_data['full_name']}")
+            print(f"   Git Provider: {archiver.repo_data['git_site']}")
+            print()
         
         # Clone the repository
-        print(f"Downloading {URL} repository...")
+        if verbose:
+            print(f"Downloading {URL} repository...")
         repo_path = archiver.clone_repository(URL)
         
         # Upload to Internet Archive
