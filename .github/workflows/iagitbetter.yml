@@ -1,4 +1,4 @@
-name: Archive Video to IA
+name: Archive Repo to IA
 
 on:
   workflow_dispatch:
