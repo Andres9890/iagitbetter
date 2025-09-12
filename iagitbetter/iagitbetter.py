@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -340,22 +340,31 @@ class GitArchiver:
             if self.verbose:
                 print(f"   Successfully cloned to {repo_path}")
             
-            # Get the first commit date instead of the last
+            # Get the first commit date and last commit date
             try:
                 # Get all commits and find the first one (oldest)
                 commits = list(repo.iter_commits(all=True))
                 if commits:
                     first_commit = commits[-1]  # Last in the list is the first chronologically
+                    last_commit = commits[0]    # First in the list is the last chronologically
+                    
                     self.repo_data['first_commit_date'] = datetime.fromtimestamp(first_commit.committed_date)
+                    self.repo_data['last_commit_date'] = datetime.fromtimestamp(last_commit.committed_date)
+                    
                     if self.verbose:
                         print(f"   First commit date: {self.repo_data['first_commit_date']}")
+                        print(f"   Last commit date: {self.repo_data['last_commit_date']}")
                 else:
                     # Fallback if no commits found
-                    self.repo_data['first_commit_date'] = datetime.now()
+                    current_time = datetime.now()
+                    self.repo_data['first_commit_date'] = current_time
+                    self.repo_data['last_commit_date'] = current_time
             except Exception as e:
                 if self.verbose:
-                    print(f"   Could not get first commit date: {e}")
-                self.repo_data['first_commit_date'] = datetime.now()
+                    print(f"   Could not get commit dates: {e}")
+                current_time = datetime.now()
+                self.repo_data['first_commit_date'] = current_time
+                self.repo_data['last_commit_date'] = current_time
             
             # Download avatar after successful clone
             self.download_avatar(repo_path)
@@ -393,6 +402,7 @@ class GitArchiver:
     def get_all_files(self, repo_path):
         """Get all files in the repository, preserving directory structure."""
         files_to_upload = {}
+        skipped_empty_files = []
         
         for root, dirs, files in os.walk(repo_path):
             # Skip .git directory
@@ -401,10 +411,28 @@ class GitArchiver:
             
             for file in files:
                 file_path = os.path.join(root, file)
+                
+                # Check if file is empty (0 bytes) and skip it
+                try:
+                    file_size = os.path.getsize(file_path)
+                    if file_size == 0:
+                        relative_path = os.path.relpath(file_path, repo_path)
+                        skipped_empty_files.append(relative_path)
+                        continue
+                except OSError:
+                    # Skip files that can't be accessed
+                    continue
+                
                 # Get relative path to preserve directory structure
                 relative_path = os.path.relpath(file_path, repo_path)
                 # Use relative path as key for Internet Archive
                 files_to_upload[relative_path] = file_path
+        
+        # Log information about skipped empty files
+        if skipped_empty_files and self.verbose:
+            print(f"   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):")
+            for empty_file in skipped_empty_files:
+                print(f"     - {empty_file}")
         
         return files_to_upload
     
@@ -480,6 +508,7 @@ class GitArchiver:
             <li>Owner: {self.repo_data['owner']}</li>
             <li>Repository Name: {self.repo_data['repo_name']}</li>
             <li>First Commit: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>Last Commit: {self.repo_data.get('last_commit_date', archive_date).strftime('%Y-%m-%d %H:%M:%S')}</li>
             <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
         <p>To restore the repository, download the bundle:</p>
