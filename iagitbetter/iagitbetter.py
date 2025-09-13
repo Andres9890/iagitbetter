@@ -566,13 +566,17 @@ class GitArchiver:
         repo_path = os.path.join(self.temp_dir, self.repo_data['repo_name'])
         
         try:
-            # Clone the repository
+            # Clone the repository (always do normal clone first)
+            repo = git.Repo.clone_from(repo_url, repo_path)
+            
             if all_branches:
-                # Clone with all branches
-                repo = git.Repo.clone_from(repo_url, repo_path, multi_options=['--all'])
-                
-                # Check out all remote branches locally
+                # After normal clone, fetch all remote branches and create local branches
                 try:
+                    # Fetch all remote branches
+                    for remote in repo.remotes:
+                        remote.fetch()
+                    
+                    # Check out all remote branches locally
                     for remote_ref in repo.remote().refs:
                         if remote_ref.name != 'origin/HEAD':
                             branch_name = remote_ref.name.replace('origin/', '')
@@ -586,8 +590,6 @@ class GitArchiver:
                     if self.verbose:
                         print(f"   Warning: Could not create all local branches: {e}")
             else:
-                # Clone only default branch
-                repo = git.Repo.clone_from(repo_url, repo_path)
                 if self.verbose:
                     print(f"   Successfully cloned to {repo_path}")
             
