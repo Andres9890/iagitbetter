@@ -44,4 +44,4 @@ jobs:
 
     - name: Run iagitbetter
       run: |
-        iagitbetter "${{ github.event.inputs.url }}"
+        iagitbetter --all-branches --releases --all-releases "${{ github.event.inputs.url }}"
