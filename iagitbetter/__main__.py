@@ -116,7 +116,6 @@ Key improvements over iagitup:
   - Shows detailed upload progress like tubeup
   - Downloads releases from supported git providers
   - Supports archiving all branches of a repository
-  - Supports archiving specific branches only
     """
 )
 
@@ -285,11 +284,8 @@ def main():
                         bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}_{branch}"
                         print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle ({branch})")
             else:
-                # Single bundle
-                if args.branch:
-                    bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}_{args.branch}"
-                else:
-                    bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
+                # Single bundle for default branch
+                bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
                 print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
             print("=" * 60)
             print("Archive complete")

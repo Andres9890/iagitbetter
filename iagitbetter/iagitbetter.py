@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -1104,8 +1104,7 @@ Examples:
             check_updates=not args.no_update_check,
             all_branches=args.all_branches,
             releases=args.releases,
-            all_releases=args.all_releases,
-            specific_branch=getattr(args, 'branch', None)
+            all_releases=args.all_releases
         )
         if identifier:
             print("\n" + "="*60)
