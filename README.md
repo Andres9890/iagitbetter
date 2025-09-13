@@ -17,7 +17,7 @@ iagitbetter is a python tool for archiving any git repository to the [Internet A
 - Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and more)
 - Downloads and uploads the entire repository file structure
 - Download repository releases with assets from supported providers
-- Clone and archive all branches of a repository
+- Clone and archive all branches of a repository with proper directory structure
 - Automatically fetches repository metadata from git provider APIs when available
 - Uses format `{owner} - {repo}` for item titles
 - Includes stars, forks, programming language, license, topics, and more metadata
@@ -106,7 +106,7 @@ For providers that support releases (GitHub, GitLab, Codeberg, Gitea), iagitbett
 - Include release assets and attachments
 - Download source code archives (zip/tar.gz)
 - Save release metadata and descriptions
-- Organize releases in a dedicated `releases/` folder
+- Organized releases in a `{owner}-{repo}_releases/` folder
 
 ## Examples
 
@@ -176,24 +176,44 @@ docs/
   └── guide.md
 tests/
   └── test_main.py
-releases/          # When --releases is used
+```
+
+### With --all-branches
+When using `--all-branches`, the structure becomes:
+```
+README.md
+src/main.py
+src/utils/helper.py
+docs/guide.md
+tests/test_main.py
+develop_branch/
+  ├── README.md
+  ├── src/main.py
+  └── ...
+feature-xyz_branch/
+  ├── README.md
+  ├── src/main.py
+  └── ...
+{owner}-{repo}.bundle
+```
+
+### With --releases
+When using `--releases`, a releases directory is added:
+```
+README.md
+src/main.py
+docs/guide.md
+{owner}-{repo}_releases/
   └── v1.0.0/
-      ├── release_info.json
+      ├── v1.0.0.info.json
       ├── v1.0.0-source.zip
       ├── v1.0.0-source.tar.gz
       └── assets/
-          └── binary-release.zip
+          └── example.exe
+{owner}-{repo}.bundle
 ```
 
-The files will be uploaded to Internet Archive as:
-- `README.md`
-- `src/main.py`
-- `src/utils/helper.py`
-- `docs/guide.md`
-- `tests/test_main.py`
-- `releases/v1.0.0/release_info.json` (if `--releases` used)
-- `releases/v1.0.0/v1.0.0-source.zip` (if `--releases` used)
-- `{owner}-{repo}.bundle` (git bundle for restoration)
+The files will be uploaded to Internet Archive exactly as shown above, preserving the directory structure
 
 If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 
@@ -206,9 +226,16 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 
 ### Repository Download
 1. The git repository is cloned to a temporary directory using GitPython
-2. If `--all-branches` is specified, all remote branches are fetched and checked out locally
+2. If `--all-branches` is specified, all remote branches are fetched and separate directories are created for each non-default branch
 3. The first commit date is extracted for the creation date
 4. A git bundle is created with all branches and tags
+
+### Branch Processing (when `--all-branches` is used)
+1. All remote branches are fetched from the repository
+2. For each non-default branch, a separate directory named `{owner}-{repo}_branches/{branch-name}` is created
+3. Each branch is checked out and its files are copied to the respective branch directory
+4. The default branch files remain in the root directory
+5. This creates a clear separation of branches in the archive
 
 ### Release Processing (when `--releases` is used)
 1. Release information is fetched from the provider's API
@@ -216,7 +243,7 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 3. Source code archives (zip/tar.gz) are downloaded
 4. Release assets and attachments are downloaded
 5. Release metadata is saved as JSON files
-6. All content is organized in a `releases/` directory structure
+6. All content is organized in a `{owner}-{repo}_releases/` directory structure
 
 ### Internet Archive Upload
 1. Comprehensive metadata is prepared including:
@@ -227,15 +254,16 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
    - API-fetched metadata (stars, forks, language, etc)
    - Branch and releases information
 2. All repository files are uploaded preserving directory structure
-3. Release files are included if downloaded
-4. The git bundle is included
-5. README.md is converted to HTML for the item description
+3. Branches are included (if archived with `--all-branches`)
+4. Release files are included (if requested)
+5. The git bundle is included
+6. README.md is converted to HTML for the item description
 
 ### Archive Format
 - Identifier: `{owner}-{repo}-YYYYMMDD-HHMMSS`
 - Title: `{owner} - {repo}`
 - Date: First commit date (for historical accuracy)
-- Files: Complete repository structure, releases (if requested), & git bundle
+- Files: Complete repository structure, branches (if requested), releases (if requested), and git bundle
 
 ## Repository Restoration
 
@@ -259,15 +287,14 @@ git branch -a
 git checkout branch-name
 ```
 
-
 ## Release Information
 
-When releases are archived, they can be found in the `releases/` directory of the archive, Each release includes:
+When releases are archived, they can be found in the `{repo-owner}-{repo}_releases/` directory of the archive, Each release includes:
 
-- `release_info.json` - Complete release metadata
-- `{tag}-source.zip` - Source code archive
-- `{tag}-source.tar.gz` - Source code tarball
-- Assets files
+- `{version}.info.json` - Complete release metadata
+- `{version}-source.zip` - Source code archive
+- `{version}-source.tar.gz` - Source code tarball
+- Asset files
 
 ## Key Improvements over iagitup
 

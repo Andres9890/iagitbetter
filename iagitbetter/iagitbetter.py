@@ -472,8 +472,9 @@ class GitArchiver:
                 print("   No suitable releases found to download")
             return
         
-        # Create releases directory
-        releases_dir = os.path.join(repo_path, 'releases')
+        # Create releases directory with new naming format: {repo-name}-{repo-owner}_releases
+        releases_dir_name = f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_releases"
+        releases_dir = os.path.join(repo_path, releases_dir_name)
         os.makedirs(releases_dir, exist_ok=True)
         
         downloaded_count = 0
@@ -499,7 +500,7 @@ class GitArchiver:
                 'draft': release.get('draft', False)
             }
             
-            with open(os.path.join(release_dir, 'release_info.json'), 'w') as f:
+            with open(os.path.join(release_dir, f'{tag_name}.info.json'), 'w') as f:
                 json.dump(release_info, f, indent=2)
             
             # Download source archives
@@ -543,8 +544,9 @@ class GitArchiver:
             downloaded_count += 1
         
         self.repo_data['downloaded_releases'] = downloaded_count
+        self.repo_data['releases_dir_name'] = releases_dir_name
         if self.verbose:
-            print(f"   Successfully downloaded {downloaded_count} release(s)")
+            print(f"   Successfully downloaded {downloaded_count} release(s) to {releases_dir_name}/")
     
     def _download_file(self, url, filepath):
         """Download a file from a URL to a local path"""
@@ -568,30 +570,6 @@ class GitArchiver:
         try:
             # Clone the repository (always do normal clone first)
             repo = git.Repo.clone_from(repo_url, repo_path)
-            
-            if all_branches:
-                # After normal clone, fetch all remote branches and create local branches
-                try:
-                    # Fetch all remote branches
-                    for remote in repo.remotes:
-                        remote.fetch()
-                    
-                    # Check out all remote branches locally
-                    for remote_ref in repo.remote().refs:
-                        if remote_ref.name != 'origin/HEAD':
-                            branch_name = remote_ref.name.replace('origin/', '')
-                            if branch_name not in [b.name for b in repo.heads]:
-                                repo.create_head(branch_name, remote_ref)
-                    
-                    if self.verbose:
-                        branch_count = len(list(repo.heads))
-                        print(f"   Successfully cloned {branch_count} branches to {repo_path}")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"   Warning: Could not create all local branches: {e}")
-            else:
-                if self.verbose:
-                    print(f"   Successfully cloned to {repo_path}")
             
             # Get the first commit date and last commit date
             try:
@@ -623,17 +601,16 @@ class GitArchiver:
                 self.repo_data['last_commit_date'] = current_time
                 self.repo_data['total_commits'] = 0
             
-            # Store branch information
+            # Get default branch
+            default_branch = repo.active_branch.name if repo.active_branch else 'main'
+            self.repo_data['default_branch'] = default_branch
+            
             if all_branches:
-                try:
-                    branches = [branch.name for branch in repo.heads]
-                    self.repo_data['branches'] = branches
-                    self.repo_data['branch_count'] = len(branches)
-                except:
-                    self.repo_data['branches'] = []
-                    self.repo_data['branch_count'] = 0
+                # Create separate directories for each branch
+                self._create_branch_directories(repo, repo_path)
             else:
-                self.repo_data['branches'] = [repo.active_branch.name] if repo.active_branch else []
+                # Store branch information for single branch
+                self.repo_data['branches'] = [default_branch]
                 self.repo_data['branch_count'] = 1
             
             # Download avatar after successful clone
@@ -644,6 +621,81 @@ class GitArchiver:
             print(f"Error cloning repository: {e}")
             self.cleanup()
             sys.exit(1)
+    
+    def _create_branch_directories(self, repo, repo_path):
+        """Create separate directories for each branch (except default branch)"""
+        try:
+            # Fetch all remote branches
+            for remote in repo.remotes:
+                remote.fetch()
+            
+            # Get all remote branches
+            remote_branches = []
+            for remote_ref in repo.remote().refs:
+                if remote_ref.name != 'origin/HEAD':
+                    branch_name = remote_ref.name.replace('origin/', '')
+                    remote_branches.append(branch_name)
+            
+            if not remote_branches:
+                remote_branches = [self.repo_data['default_branch']]
+            
+            # Store branch information
+            self.repo_data['branches'] = remote_branches
+            self.repo_data['branch_count'] = len(remote_branches)
+            
+            if self.verbose:
+                print(f"   Found {len(remote_branches)} branches: {', '.join(remote_branches)}")
+                print(f"   Default branch ({self.repo_data['default_branch']}) files will be in root directory")
+                print(f"   Other branches will have their own directories")
+            
+            # For non-default branches, create separate directories
+            for branch_name in remote_branches:
+                if branch_name != self.repo_data['default_branch']:
+                    if self.verbose:
+                        print(f"   Creating directory for branch: {branch_name}")
+                    
+                    # Create branch directory
+                    branch_dir = os.path.join(repo_path, f"{branch_name}_branch")
+                    os.makedirs(branch_dir, exist_ok=True)
+                    
+                    # Checkout the branch
+                    try:
+                        if branch_name not in [b.name for b in repo.heads]:
+                            repo.create_head(branch_name, f"origin/{branch_name}")
+                        repo.heads[branch_name].checkout()
+                        
+                        # Copy all files to branch directory (excluding .git)
+                        for item in os.listdir(repo_path):
+                            if item == '.git' or item.endswith('_branch') or item == f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_releases":
+                                continue
+                            
+                            src_path = os.path.join(repo_path, item)
+                            dst_path = os.path.join(branch_dir, item)
+                            
+                            if os.path.isdir(src_path):
+                                shutil.copytree(src_path, dst_path, symlinks=True)
+                            else:
+                                shutil.copy2(src_path, dst_path)
+                                
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"     Warning: Could not process branch {branch_name}: {e}")
+            
+            # Checkout default branch to keep files in root
+            try:
+                repo.heads[self.repo_data['default_branch']].checkout()
+                if self.verbose:
+                    print(f"   Checked out default branch: {self.repo_data['default_branch']}")
+            except Exception as e:
+                if self.verbose:
+                    print(f"   Warning: Could not checkout default branch: {e}")
+                    
+        except Exception as e:
+            if self.verbose:
+                print(f"   Warning: Could not create all branch directories: {e}")
+            # Fallback to single branch
+            self.repo_data['branches'] = [self.repo_data['default_branch']]
+            self.repo_data['branch_count'] = 1
     
     def create_git_bundle(self, repo_path):
         """Create a git bundle of the repository."""
@@ -701,8 +753,10 @@ class GitArchiver:
         # Log information about skipped empty files
         if skipped_empty_files and self.verbose:
             print(f"   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):")
-            for empty_file in skipped_empty_files:
+            for empty_file in skipped_empty_files[:5]:  # Show first 5
                 print(f"     - {empty_file}")
+            if len(skipped_empty_files) > 5:
+                print(f"     ... and {len(skipped_empty_files) - 5} more")
         
         return files_to_upload
     
@@ -853,6 +907,8 @@ class GitArchiver:
         if includes_releases:
             metadata['includesreleases'] = 'true'
             metadata['releasecount'] = str(self.repo_data.get('downloaded_releases', 0))
+            if self.repo_data.get('releases_dir_name'):
+                metadata['releasesdirname'] = self.repo_data['releases_dir_name']
         else:
             metadata['includesreleases'] = 'false'
         
@@ -920,6 +976,24 @@ class GitArchiver:
             if self.verbose:
                 print(f"Uploading {len(files_to_upload)} files to Internet Archive")
                 print("This may take some time depending on repository size and connection speed")
+                
+                # Show what major components are being uploaded
+                components = []
+                if bundle_filename:
+                    components.append("Git bundle")
+                if includes_all_branches:
+                    branches_dir = self.repo_data.get('branches_dir_name')
+                    if branches_dir:
+                        branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
+                        if branch_files:
+                            non_default_count = len([b for b in self.repo_data.get('branches', []) if b != self.repo_data.get('default_branch')])
+                            components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
+                if includes_releases and self.repo_data.get('releases_dir_name'):
+                    release_files = [f for f in files_to_upload.keys() if f.startswith(self.repo_data['releases_dir_name'])]
+                    if release_files:
+                        components.append(f"Releases directory ({len(release_files)} files)")
+                components.append("Repository files")
+                print(f"   Components: {', '.join(components)}")
             
             # Parse internetarchive configuration file to get credentials
             access_key = None

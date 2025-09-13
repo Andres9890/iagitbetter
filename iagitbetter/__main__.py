@@ -261,32 +261,28 @@ def main():
             
             # Show what was archived
             if args.all_branches:
-                print(f"Branches: All branches archived")
+                branch_count = archiver.repo_data.get('branch_count', 0)
+                branches = archiver.repo_data.get('branches', [])
+                default_branch = archiver.repo_data.get('default_branch', 'main')
+                branches_dir = archiver.repo_data.get('branches_dir_name', '')
+                print(f"Branches: {branch_count} branches archived")
+                print(f"   Default branch ({default_branch}): Files in root directory")
+                other_branches = [b for b in branches if b != default_branch]
+                if other_branches and branches_dir:
+                    print(f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)")
             if args.releases:
                 release_count = archiver.repo_data.get('downloaded_releases', 0)
+                releases_dir = archiver.repo_data.get('releases_dir_name', 'releases')
                 if args.all_releases:
-                    print(f"Releases: {release_count} releases archived")
+                    print(f"Releases: {release_count} releases archived in {releases_dir}/")
                 else:
-                    print(f"Releases: Latest release archived")
+                    print(f"Releases: Latest release archived in {releases_dir}/")
             
             print(f"Archived repository URL:")
             print(f"    https://archive.org/details/{identifier}")
-            print(f"Archived git bundle file(s):")
-            if args.all_branches:
-                # Multiple bundles for all branches
-                default_branch = archiver.repo_data.get('default_branch', 'main')
-                branches = archiver.repo_data.get('branches', [])
-                for branch in branches:
-                    if branch == default_branch:
-                        bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
-                        print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle ({branch} - default)")
-                    else:
-                        bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}_{branch}"
-                        print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle ({branch})")
-            else:
-                # Single bundle for default branch
-                bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
-                print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
+            print(f"Archived git bundle file:")
+            bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
+            print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
             print("=" * 60)
             print("Archive complete")
             print()
