@@ -19,6 +19,8 @@ import re
 import subprocess
 import stat
 import urllib.request
+import zipfile
+import tarfile
 from datetime import datetime
 from urllib.parse import urlparse
 from pathlib import Path
@@ -109,7 +111,9 @@ class GitArchiver:
             'git_site': git_site,
             'owner': owner,
             'repo_name': repo_name,
-            'full_name': f"{owner}/{repo_name}"
+            'full_name': f"{owner}/{repo_name}",
+            'releases': [],
+            'downloaded_releases': 0
         }
         
         # Try to fetch additional metadata from API if available
@@ -217,7 +221,8 @@ class GitArchiver:
                 'merge_requests_enabled': api_data.get('merge_requests_enabled', False),
                 'ci_enabled': api_data.get('builds_enabled', False),
                 'shared_runners_enabled': api_data.get('shared_runners_enabled', False),
-                'avatar_url': avatar_url
+                'avatar_url': avatar_url,
+                'project_id': api_data.get('id', '')
             })
         elif domain == 'bitbucket.org':
             self.repo_data.update({
@@ -325,10 +330,236 @@ class GitArchiver:
                 print(f"   Could not download avatar: {e}")
             return None
     
-    def clone_repository(self, repo_url):
+    def fetch_releases(self):
+        """Fetch releases from the git provider API"""
+        domain = self.repo_data['domain']
+        owner = self.repo_data['owner']
+        repo_name = self.repo_data['repo_name']
+        
+        releases = []
+        
+        try:
+            if domain == 'github.com':
+                # GitHub releases API
+                url = f"https://api.github.com/repos/{owner}/{repo_name}/releases"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    api_releases = response.json()
+                    for release in api_releases:
+                        release_data = {
+                            'id': release.get('id'),
+                            'tag_name': release.get('tag_name'),
+                            'name': release.get('name', release.get('tag_name')),
+                            'body': release.get('body', ''),
+                            'draft': release.get('draft', False),
+                            'prerelease': release.get('prerelease', False),
+                            'published_at': release.get('published_at'),
+                            'zipball_url': release.get('zipball_url'),
+                            'tarball_url': release.get('tarball_url'),
+                            'assets': []
+                        }
+                        
+                        # Add assets
+                        for asset in release.get('assets', []):
+                            release_data['assets'].append({
+                                'name': asset.get('name'),
+                                'download_url': asset.get('browser_download_url'),
+                                'size': asset.get('size'),
+                                'content_type': asset.get('content_type')
+                            })
+                        
+                        releases.append(release_data)
+            
+            elif domain == 'gitlab.com':
+                # GitLab releases API
+                project_id = self.repo_data.get('project_id')
+                if project_id:
+                    url = f"https://gitlab.com/api/v4/projects/{project_id}/releases"
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        api_releases = response.json()
+                        for release in api_releases:
+                            release_data = {
+                                'tag_name': release.get('tag_name'),
+                                'name': release.get('name', release.get('tag_name')),
+                                'description': release.get('description', ''),
+                                'released_at': release.get('released_at'),
+                                'assets': []
+                            }
+                            
+                            # GitLab doesn't provide automatic source archives like GitHub
+                            # Add manual download links for source code
+                            release_data['zipball_url'] = f"https://gitlab.com/{owner}/{repo_name}/-/archive/{release.get('tag_name')}/{repo_name}-{release.get('tag_name')}.zip"
+                            release_data['tarball_url'] = f"https://gitlab.com/{owner}/{repo_name}/-/archive/{release.get('tag_name')}/{repo_name}-{release.get('tag_name')}.tar.gz"
+                            
+                            # Add release assets/links
+                            for link in release.get('assets', {}).get('links', []):
+                                release_data['assets'].append({
+                                    'name': link.get('name'),
+                                    'download_url': link.get('url'),
+                                    'link_type': link.get('link_type')
+                                })
+                            
+                            releases.append(release_data)
+            
+            elif domain in ['codeberg.org', 'gitea.com']:
+                # Gitea/Forgejo releases API
+                url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    api_releases = response.json()
+                    for release in api_releases:
+                        release_data = {
+                            'id': release.get('id'),
+                            'tag_name': release.get('tag_name'),
+                            'name': release.get('name', release.get('tag_name')),
+                            'body': release.get('body', ''),
+                            'draft': release.get('draft', False),
+                            'prerelease': release.get('prerelease', False),
+                            'published_at': release.get('published_at'),
+                            'zipball_url': release.get('zipball_url'),
+                            'tarball_url': release.get('tarball_url'),
+                            'assets': []
+                        }
+                        
+                        # Add assets
+                        for asset in release.get('assets', []):
+                            release_data['assets'].append({
+                                'name': asset.get('name'),
+                                'download_url': asset.get('browser_download_url'),
+                                'size': asset.get('size')
+                            })
+                        
+                        releases.append(release_data)
+            
+            self.repo_data['releases'] = releases
+            if self.verbose and releases:
+                print(f"   Found {len(releases)} releases")
+            elif self.verbose:
+                print(f"   No releases found for this repository")
+                
+        except Exception as e:
+            if self.verbose:
+                print(f"   Could not fetch releases: {e}")
+            self.repo_data['releases'] = []
+    
+    def download_releases(self, repo_path, all_releases=False):
+        """Download releases to the repository directory"""
+        if not self.repo_data.get('releases'):
+            # Fetch releases if not already done
+            self.fetch_releases()
+        
+        releases = self.repo_data.get('releases', [])
+        if not releases:
+            if self.verbose:
+                print("   No releases available to download")
+            return
+        
+        # Determine which releases to download
+        if all_releases:
+            releases_to_download = releases
+        else:
+            # Download only the latest non-prerelease release
+            latest_release = None
+            for release in releases:
+                if not release.get('prerelease', False) and not release.get('draft', False):
+                    latest_release = release
+                    break
+            releases_to_download = [latest_release] if latest_release else []
+        
+        if not releases_to_download:
+            if self.verbose:
+                print("   No suitable releases found to download")
+            return
+        
+        # Create releases directory
+        releases_dir = os.path.join(repo_path, 'releases')
+        os.makedirs(releases_dir, exist_ok=True)
+        
+        downloaded_count = 0
+        
+        for release in releases_to_download:
+            tag_name = release.get('tag_name', 'unknown')
+            release_name = release.get('name', tag_name)
+            
+            if self.verbose:
+                print(f"   Downloading release: {release_name} ({tag_name})")
+            
+            # Create directory for this release
+            release_dir = os.path.join(releases_dir, tag_name)
+            os.makedirs(release_dir, exist_ok=True)
+            
+            # Create release info file
+            release_info = {
+                'tag_name': tag_name,
+                'name': release_name,
+                'published_at': release.get('published_at', release.get('released_at')),
+                'description': release.get('body', release.get('description', '')),
+                'prerelease': release.get('prerelease', False),
+                'draft': release.get('draft', False)
+            }
+            
+            with open(os.path.join(release_dir, 'release_info.json'), 'w') as f:
+                json.dump(release_info, f, indent=2)
+            
+            # Download source archives
+            if release.get('zipball_url'):
+                try:
+                    self._download_file(
+                        release['zipball_url'], 
+                        os.path.join(release_dir, f"{tag_name}-source.zip")
+                    )
+                except Exception as e:
+                    if self.verbose:
+                        print(f"     Could not download source zip: {e}")
+            
+            if release.get('tarball_url'):
+                try:
+                    self._download_file(
+                        release['tarball_url'], 
+                        os.path.join(release_dir, f"{tag_name}-source.tar.gz")
+                    )
+                except Exception as e:
+                    if self.verbose:
+                        print(f"     Could not download source tarball: {e}")
+            
+            # Download release assets
+            for asset in release.get('assets', []):
+                asset_name = asset.get('name', 'unknown_asset')
+                download_url = asset.get('download_url')
+                
+                if download_url:
+                    try:
+                        self._download_file(
+                            download_url,
+                            os.path.join(release_dir, asset_name)
+                        )
+                        if self.verbose:
+                            print(f"     Downloaded asset: {asset_name}")
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"     Could not download asset {asset_name}: {e}")
+            
+            downloaded_count += 1
+        
+        self.repo_data['downloaded_releases'] = downloaded_count
+        if self.verbose:
+            print(f"   Successfully downloaded {downloaded_count} release(s)")
+    
+    def _download_file(self, url, filepath):
+        """Download a file from a URL to a local path"""
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+    
+    def clone_repository(self, repo_url, all_branches=False):
         """Clone the git repository to a temporary directory."""
         if self.verbose:
-            print(f"Cloning repository from {repo_url}...")
+            branch_info = "all branches" if all_branches else "default branch"
+            print(f"Cloning repository from {repo_url} ({branch_info})...")
         
         # Create temporary directory
         self.temp_dir = tempfile.mkdtemp(prefix='iagitbetter_')
@@ -336,9 +567,29 @@ class GitArchiver:
         
         try:
             # Clone the repository
-            repo = git.Repo.clone_from(repo_url, repo_path)
-            if self.verbose:
-                print(f"   Successfully cloned to {repo_path}")
+            if all_branches:
+                # Clone with all branches
+                repo = git.Repo.clone_from(repo_url, repo_path, multi_options=['--all'])
+                
+                # Check out all remote branches locally
+                try:
+                    for remote_ref in repo.remote().refs:
+                        if remote_ref.name != 'origin/HEAD':
+                            branch_name = remote_ref.name.replace('origin/', '')
+                            if branch_name not in [b.name for b in repo.heads]:
+                                repo.create_head(branch_name, remote_ref)
+                    
+                    if self.verbose:
+                        branch_count = len(list(repo.heads))
+                        print(f"   Successfully cloned {branch_count} branches to {repo_path}")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"   Warning: Could not create all local branches: {e}")
+            else:
+                # Clone only default branch
+                repo = git.Repo.clone_from(repo_url, repo_path)
+                if self.verbose:
+                    print(f"   Successfully cloned to {repo_path}")
             
             # Get the first commit date and last commit date
             try:
@@ -350,21 +601,38 @@ class GitArchiver:
                     
                     self.repo_data['first_commit_date'] = datetime.fromtimestamp(first_commit.committed_date)
                     self.repo_data['last_commit_date'] = datetime.fromtimestamp(last_commit.committed_date)
+                    self.repo_data['total_commits'] = len(commits)
                     
                     if self.verbose:
                         print(f"   First commit date: {self.repo_data['first_commit_date']}")
                         print(f"   Last commit date: {self.repo_data['last_commit_date']}")
+                        print(f"   Total commits: {self.repo_data['total_commits']}")
                 else:
                     # Fallback if no commits found
                     current_time = datetime.now()
                     self.repo_data['first_commit_date'] = current_time
                     self.repo_data['last_commit_date'] = current_time
+                    self.repo_data['total_commits'] = 0
             except Exception as e:
                 if self.verbose:
-                    print(f"   Could not get commit dates: {e}")
+                    print(f"   Could not get commit information: {e}")
                 current_time = datetime.now()
                 self.repo_data['first_commit_date'] = current_time
                 self.repo_data['last_commit_date'] = current_time
+                self.repo_data['total_commits'] = 0
+            
+            # Store branch information
+            if all_branches:
+                try:
+                    branches = [branch.name for branch in repo.heads]
+                    self.repo_data['branches'] = branches
+                    self.repo_data['branch_count'] = len(branches)
+                except:
+                    self.repo_data['branches'] = []
+                    self.repo_data['branch_count'] = 0
+            else:
+                self.repo_data['branches'] = [repo.active_branch.name] if repo.active_branch else []
+                self.repo_data['branch_count'] = 1
             
             # Download avatar after successful clone
             self.download_avatar(repo_path)
@@ -388,7 +656,7 @@ class GitArchiver:
             original_dir = os.getcwd()
             os.chdir(repo_path)
             
-            # Create bundle
+            # Create bundle with all branches and tags
             subprocess.check_call(['git', 'bundle', 'create', bundle_path, '--all'])
             
             os.chdir(original_dir)
@@ -479,7 +747,7 @@ class GitArchiver:
         
         return "This git repository doesn't have a README.md file"
     
-    def upload_to_ia(self, repo_path, custom_metadata=None):
+    def upload_to_ia(self, repo_path, custom_metadata=None, includes_releases=False, includes_all_branches=False):
         """Upload the repository to the Internet Archive"""
         # Generate timestamps - use current time for archival date and identifier
         archive_date = datetime.now()
@@ -499,6 +767,21 @@ class GitArchiver:
         # Get description from README using iagitup method
         readme_description = self.get_description_from_readme(repo_path)
         
+        # Build archive details for description
+        archive_details = []
+        archive_details.append(f"Repository files")
+        
+        if includes_all_branches:
+            branch_count = self.repo_data.get('branch_count', 0)
+            archive_details.append(f"All {branch_count} branches")
+        else:
+            archive_details.append("Default branch")
+        
+        if includes_releases:
+            release_count = self.repo_data.get('downloaded_releases', 0)
+            if release_count > 0:
+                archive_details.append(f"{release_count} release(s) with assets")
+        
         # Build full description
         description_footer = f"""<br/><hr/>
         <p><strong>Repository Information:</strong></p>
@@ -509,6 +792,7 @@ class GitArchiver:
             <li>Repository Name: {self.repo_data['repo_name']}</li>
             <li>First Commit: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
             <li>Last Commit: {self.repo_data.get('last_commit_date', archive_date).strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>Total Commits: {self.repo_data.get('total_commits', 'Unknown')}</li>
             <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
         <p>To restore the repository, download the bundle:</p>
@@ -523,6 +807,19 @@ class GitArchiver:
         else:
             description = f"{readme_description}{description_footer}"
         
+        # Prepare subject tags
+        subject_tags = [
+            'git', 'code', self.repo_data['git_site'], 'repository', 'repo',
+            self.repo_data['owner'], self.repo_data['repo_name']
+        ]
+        
+        if includes_releases:
+            subject_tags.append('releases')
+        if includes_all_branches:
+            subject_tags.append('branches')
+        if self.repo_data.get('language'):
+            subject_tags.append(self.repo_data['language'].lower())
+        
         # Prepare metadata - use first commit date for date field
         metadata = {
             'title': item_name,
@@ -532,13 +829,30 @@ class GitArchiver:
             'creator': self.repo_data['owner'],
             'date': repo_date.strftime('%Y-%m-%d'),  # First commit date
             'year': repo_date.year,
-            'subject': f"git;code;{self.repo_data['git_site']};repository;repo;{self.repo_data['owner']};{self.repo_data['repo_name']}",
+            'subject': ';'.join(subject_tags),
             'originalrepo': self.repo_data['url'],
             'gitsite': self.repo_data['git_site'],
             'language': self.repo_data.get('language', 'Unknown'),
             'identifier': identifier,
-            'scanner': f"iagitbetter Git Repository Mirroring Application {__version__}"
+            'scanner': f"iagitbetter Git Repository Mirroring Application {__version__}",
+            'totalcommits': str(self.repo_data.get('total_commits', 0))
         }
+        
+        # Add branch information
+        if includes_all_branches:
+            metadata['allbranches'] = 'true'
+            metadata['branchcount'] = str(self.repo_data.get('branch_count', 0))
+            if self.repo_data.get('branches'):
+                metadata['branchlist'] = ';'.join(self.repo_data['branches'])
+        else:
+            metadata['allbranches'] = 'false'
+        
+        # Add release information
+        if includes_releases:
+            metadata['includesreleases'] = 'true'
+            metadata['releasecount'] = str(self.repo_data.get('downloaded_releases', 0))
+        else:
+            metadata['includesreleases'] = 'false'
         
         # Add additional metadata from API if available
         if self.repo_data.get('stars') is not None:
@@ -570,6 +884,7 @@ class GitArchiver:
             print(f"   Title: {item_name}")
             print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
             print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
+            print(f"   Contents: {', '.join(archive_details)}")
         
         try:
             # Get or create the item
@@ -699,7 +1014,8 @@ class GitArchiver:
         
         return custom_meta
     
-    def run(self, repo_url, custom_metadata_string=None, verbose=True, check_updates=True):
+    def run(self, repo_url, custom_metadata_string=None, verbose=True, check_updates=True, 
+           all_branches=False, releases=False, all_releases=False):
         """Main execution flow."""
         self.verbose = verbose
         
@@ -722,10 +1038,19 @@ class GitArchiver:
             print(f"   Git Provider: {self.repo_data['git_site']}")
         
         # Clone repository
-        repo_path = self.clone_repository(repo_url)
+        repo_path = self.clone_repository(repo_url, all_branches=all_branches)
+        
+        # Download releases if requested
+        if releases:
+            self.download_releases(repo_path, all_releases=all_releases)
         
         # Upload to Internet Archive
-        identifier, metadata = self.upload_to_ia(repo_path, custom_metadata)
+        identifier, metadata = self.upload_to_ia(
+            repo_path, 
+            custom_metadata,
+            includes_releases=releases,
+            includes_all_branches=all_branches
+        )
         
         # Cleanup
         self.cleanup()
@@ -744,6 +1069,8 @@ Examples:
   %(prog)s https://bitbucket.org/user/repo
   %(prog)s --metadata="license:MIT,topic:python" https://github.com/user/repo
   %(prog)s --quiet https://github.com/user/repo
+  %(prog)s --releases --all-releases https://github.com/user/repo
+  %(prog)s --all-branches https://github.com/user/repo
         """
     )
     
@@ -755,6 +1082,12 @@ Examples:
                        help='Suppress verbose output')
     parser.add_argument('--no-update-check', action='store_true',
                        help='Skip checking for updates on PyPI')
+    parser.add_argument('--releases', action='store_true',
+                       help='Download releases from the repository')
+    parser.add_argument('--all-releases', action='store_true',
+                       help='Download all releases (default: latest only)')
+    parser.add_argument('--all-branches', action='store_true',
+                       help='Clone and archive all branches')
     parser.add_argument('--version', '-v', 
                        action='version', 
                        version=f'%(prog)s {__version__}')
@@ -768,7 +1101,11 @@ Examples:
             args.repo_url, 
             args.metadata, 
             verbose=not args.quiet,
-            check_updates=not args.no_update_check
+            check_updates=not args.no_update_check,
+            all_branches=args.all_branches,
+            releases=args.releases,
+            all_releases=args.all_releases,
+            specific_branch=getattr(args, 'branch', None)
         )
         if identifier:
             print("\n" + "="*60)

@@ -14,16 +14,18 @@ iagitbetter is a python tool for archiving any git repository to the [Internet A
 
 ## Features
 
-- Git Support: Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and a lot more)
-- Complete Repo Archiving: Downloads and uploads the entire repository file structure
-- APIs: Automatically fetches repository metadata from git provider APIs when available
-- Clean Naming Convention: Uses format `{owner} - {repo}` for item titles
-- Metadata: Includes stars, forks, programming language, license, topics, and more
-- Directory Structure Preservation: Keeps the original repository folder structure in the archive
-- Git Bundle Creation: Creates git bundles
-- First Commit Date: Uses the first commit date as the repo creation date
-- Custom Metadata Support: Pass additional metadata using `--metadata=<key:value>`
-- Automatic Cleanup: Removes temporary files after upload
+- Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and more)
+- Downloads and uploads the entire repository file structure
+- Download repository releases with assets from supported providers
+- Clone and archive all branches of a repository
+- Automatically fetches repository metadata from git provider APIs when available
+- Uses format `{owner} - {repo}` for item titles
+- Includes stars, forks, programming language, license, topics, and more metadata
+- Keeps the original repository folder structure in the archive
+- Creates git bundles for complete repository restoration
+- Uses the first commit date as the repo creation date
+- Pass additional metadata using `--metadata=<key:value>`
+- Removes temporary files after upload
 
 ## Installation
 
@@ -46,18 +48,31 @@ You'll be prompted to enter your Internet Archive account's email and password.
 ## Usage
 
 ```bash
-iagitbetter <git_url> [--metadata=<key:value>...] [--bundle-only]
+iagitbetter <git_url> [options]
 ```
 
-Arguments:
+### Basic Arguments
 
 - `<git_url>` – Git repository URL to archive (works with any git provider)
 
-Options:
+### Options
 
 - `--metadata=<key:value>` – custom metadata to add to the IA item
 - `--bundle-only` – only upload git bundle, not all files
+- `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
+- `--no-update-check` – skip checking for updates on PyPI
+
+### Release Options
+
+- `--releases` – download releases from the repository (GitHub, GitLab, Codeberg, Gitea)
+- `--all-releases` – download all releases (default: latest release only)
+- `--latest-release` – download only the latest release (default when `--releases` is used)
+
+### Branch Options
+
+- `--all-branches` – clone and archive all branches of the repository
+- `--branch` – clone and archive a branch of the repository
 
 ## Supported Git Providers
 
@@ -84,7 +99,18 @@ For supported providers, iagitbetter automatically fetches:
 - Homepage URL
 - Issue and wiki availability
 
+### Release Support
+
+For providers that support releases (GitHub, GitLab, Codeberg, Gitea), iagitbetter can:
+- Download the latest release or all releases
+- Include release assets and attachments
+- Download source code archives (zip/tar.gz)
+- Save release metadata and descriptions
+- Organize releases in a dedicated `releases/` folder
+
 ## Examples
+
+### Basic Repository Archiving
 
 ```bash
 # Archive GitHub repository
@@ -96,14 +122,44 @@ iagitbetter https://gitlab.com/user/repository
 # Archive BitBucket repository
 iagitbetter https://bitbucket.org/user/repository
 
-# Archive with custom metadata
-iagitbetter https://github.com/user/repo --metadata="collection:software,topic:python"
-
-# Bundle-only
-iagitbetter https://github.com/user/repo --bundle-only
-
 # Archive from any git provider
 iagitbetter https://git.example.com/user/repository.git
+```
+
+### Release Archiving
+
+```bash
+# Archive repository with latest release
+iagitbetter --releases https://github.com/user/repo
+
+# Archive repository with all releases
+iagitbetter --releases --all-releases https://github.com/user/repo
+
+# Explicitly specify latest release only
+iagitbetter --releases --latest-release https://github.com/user/repo
+```
+
+### Branch Archiving
+
+```bash
+# Archive all branches of a repository
+iagitbetter --all-branches https://github.com/user/repo
+
+# Archive all branches AND all releases
+iagitbetter --all-branches --releases --all-releases https://github.com/user/repo
+```
+
+### Advanced Usage
+
+```bash
+# Archive with custom metadata
+iagitbetter --metadata="collection:software,topic:python" https://github.com/user/repo
+
+# Bundle-only (compatibility mode)
+iagitbetter --bundle-only https://github.com/user/repo
+
+# Quiet mode with all features
+iagitbetter --quiet --all-branches --releases --all-releases https://github.com/user/repo
 ```
 
 ## Repository Structure Preservation
@@ -120,6 +176,13 @@ docs/
   └── guide.md
 tests/
   └── test_main.py
+releases/          # When --releases is used
+  └── v1.0.0/
+      ├── release_info.json
+      ├── v1.0.0-source.zip
+      ├── v1.0.0-source.tar.gz
+      └── assets/
+          └── binary-release.zip
 ```
 
 The files will be uploaded to Internet Archive as:
@@ -128,21 +191,32 @@ The files will be uploaded to Internet Archive as:
 - `src/utils/helper.py`
 - `docs/guide.md`
 - `tests/test_main.py`
+- `releases/v1.0.0/release_info.json` (if `--releases` used)
+- `releases/v1.0.0/v1.0.0-source.zip` (if `--releases` used)
 - `{owner}-{repo}.bundle` (git bundle for restoration)
 
-If you use the `--bundle-only` flag, only the git bundle will be uploaded
+If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 
 ## How it works
 
 ### Repository Analysis
 1. `iagitbetter` parses the git URL to identify the provider and repository details
-2. It attempts to fetch additional metadata from the provider's API (if it's supported provider)
+2. It attempts to fetch additional metadata from the provider's API (if it's a supported provider)
 3. Repository information is extracted including owner, name, and provider details
 
 ### Repository Download
 1. The git repository is cloned to a temporary directory using GitPython
-2. The first commit date is extracted for the creation date
-3. A git bundle is created
+2. If `--all-branches` is specified, all remote branches are fetched and checked out locally
+3. The first commit date is extracted for the creation date
+4. A git bundle is created with all branches and tags
+
+### Release Processing (when `--releases` is used)
+1. Release information is fetched from the provider's API
+2. Latest release or all releases are downloaded based on options
+3. Source code archives (zip/tar.gz) are downloaded
+4. Release assets and attachments are downloaded
+5. Release metadata is saved as JSON files
+6. All content is organized in a `releases/` directory structure
 
 ### Internet Archive Upload
 1. Comprehensive metadata is prepared including:
@@ -151,15 +225,17 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded
    - Original repository URL and git provider information
    - First commit date as the creation date
    - API-fetched metadata (stars, forks, language, etc)
+   - Branch and releases information
 2. All repository files are uploaded preserving directory structure
-3. The git bundle is included
-4. README.md is converted to HTML for the item description
+3. Release files are included if downloaded
+4. The git bundle is included
+5. README.md is converted to HTML for the item description
 
 ### Archive Format
 - Identifier: `{owner}-{repo}-YYYYMMDD-HHMMSS`
 - Title: `{owner} - {repo}`
 - Date: First commit date (for historical accuracy)
-- Files: Complete repository structure & git bundle
+- Files: Complete repository structure, releases (if requested), & git bundle
 
 ## Repository Restoration
 
@@ -169,21 +245,38 @@ To restore a repository from the archive:
 # Download the git bundle
 wget https://archive.org/download/{identifier}/{owner}-{repo}.bundle
 
-# Clone from the bundle
+# Clone from the bundle (includes all branches if archived with --all-branches)
 git clone {owner}-{repo}.bundle {repo-name}
 
 # Or restore using git
 git clone {owner}-{repo}.bundle
 cd {repo-name}
+
+# List all available branches (if --all-branches was used)
+git branch -a
+
+# Check out a specific branch
+git checkout branch-name
 ```
+
+
+## Release Information
+
+When releases are archived, they can be found in the `releases/` directory of the archive, Each release includes:
+
+- `release_info.json` - Complete release metadata
+- `{tag}-source.zip` - Source code archive
+- `{tag}-source.tar.gz` - Source code tarball
+- Assets files
 
 ## Key Improvements over iagitup
 
 - Works with any git provider
-- Uploads the entire repo structure
-- Automatically fetches repo information
+- Uploads the entire repository file structure
+- Can archive all branches of a repository
+- Automatically fetches repository information
 - Uses first commit date
-- Uses provider APIs for metadata
+- Leverages git provider APIs for metadata
 
 ## Requirements
 

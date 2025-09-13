@@ -7,7 +7,7 @@ def read(fname):
 
 setup(
     name='iagitbetter',
-    version='1.0.2',
+    version='1.0.3',
     author='Andres99',
     description='Archiving any git repository to the Internet Archive',
     long_description=read('README.md'),
