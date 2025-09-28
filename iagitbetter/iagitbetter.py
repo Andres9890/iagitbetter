@@ -856,8 +856,8 @@ class GitArchiver:
         else:
             repo_date = archive_date
         
-        # Format identifier using archive date: {repo-owner-username}-{repo-name}-%Y%m%d-%H%M%S
-        identifier = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d-%H%M%S')}"
+        # Format identifier using archive date: {repo-owner-username}-{repo-name}-%Y%m%d%H%M%S
+        identifier = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d%H%M%S')}"
         
         # Item name: {repo-owner-username} - {repo-name}
         item_name = f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
