@@ -1022,6 +1022,17 @@ class GitArchiver:
             if bundle_path and os.path.exists(bundle_path):
                 files_to_upload[bundle_filename] = bundle_path
             
+            # Always check for and include avatar file
+            username = self.repo_data['owner']
+            for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+                avatar_filename = f"{username}{ext}"
+                avatar_path = os.path.join(repo_path, avatar_filename)
+                if os.path.exists(avatar_path):
+                    files_to_upload[avatar_filename] = avatar_path
+                    if self.verbose and bundle_only:
+                        print(f"   Including user avatar: {avatar_filename}")
+                    break
+            
             # If not bundle-only mode, add all repository files
             if not bundle_only:
                 if self.verbose:
@@ -1041,6 +1052,13 @@ class GitArchiver:
                 components = []
                 if bundle_filename:
                     components.append("Git bundle")
+                
+                # Check if avatar is included
+                avatar_included = any(f.startswith(username) and f.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')) 
+                                    for f in files_to_upload.keys())
+                if avatar_included:
+                    components.append("User avatar")
+                    
                 if not bundle_only:
                     if includes_all_branches:
                         branches_dir = self.repo_data.get('branches_dir_name')
