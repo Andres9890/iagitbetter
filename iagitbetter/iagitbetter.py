@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -472,8 +472,7 @@ class GitArchiver:
                 print("   No suitable releases found to download")
             return
         
-        # Create releases directory with new naming format: {repo-name}-{repo-owner}_releases
-        releases_dir_name = f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_releases"
+        releases_dir_name = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_releases"
         releases_dir = os.path.join(repo_path, releases_dir_name)
         os.makedirs(releases_dir, exist_ok=True)
         
@@ -557,10 +556,25 @@ class GitArchiver:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
     
-    def clone_repository(self, repo_url, all_branches=False):
+    def _sanitize_branch_name(self, branch_name):
+        """Sanitize branch name for use as directory name"""
+        # Remove forward slashes and other problematic characters
+        sanitized = branch_name.replace('/', '-').replace('\\', '-')
+        # Remove other potentially problematic characters
+        sanitized = re.sub(r'[<>:"|?*]', '-', sanitized)
+        # Remove leading/trailing dots and spaces
+        sanitized = sanitized.strip('. ')
+        return sanitized
+    
+    def clone_repository(self, repo_url, all_branches=False, specific_branch=None):
         """Clone the git repository to a temporary directory."""
         if self.verbose:
-            branch_info = "all branches" if all_branches else "default branch"
+            if all_branches:
+                branch_info = "all branches"
+            elif specific_branch:
+                branch_info = f"branch: {specific_branch}"
+            else:
+                branch_info = "default branch"
             print(f"Cloning repository from {repo_url} ({branch_info})...")
         
         # Create temporary directory
@@ -568,8 +582,14 @@ class GitArchiver:
         repo_path = os.path.join(self.temp_dir, self.repo_data['repo_name'])
         
         try:
-            # Clone the repository (always do normal clone first)
-            repo = git.Repo.clone_from(repo_url, repo_path)
+            # Clone the repository
+            if specific_branch:
+                # Clone specific branch only
+                repo = git.Repo.clone_from(repo_url, repo_path, branch=specific_branch, single_branch=True)
+                self.repo_data['specific_branch'] = specific_branch
+            else:
+                # Clone all branches (default behavior)
+                repo = git.Repo.clone_from(repo_url, repo_path)
             
             # Get the first commit date and last commit date
             try:
@@ -602,15 +622,21 @@ class GitArchiver:
                 self.repo_data['total_commits'] = 0
             
             # Get default branch
-            default_branch = repo.active_branch.name if repo.active_branch else 'main'
+            if specific_branch:
+                default_branch = specific_branch
+            else:
+                default_branch = repo.active_branch.name if repo.active_branch else 'main'
             self.repo_data['default_branch'] = default_branch
             
-            if all_branches:
+            if all_branches and not specific_branch:
                 # Create separate directories for each branch
                 self._create_branch_directories(repo, repo_path)
             else:
                 # Store branch information for single branch
-                self.repo_data['branches'] = [default_branch]
+                if specific_branch:
+                    self.repo_data['branches'] = [specific_branch]
+                else:
+                    self.repo_data['branches'] = [default_branch]
                 self.repo_data['branch_count'] = 1
             
             # Download avatar after successful clone
@@ -646,40 +672,55 @@ class GitArchiver:
             if self.verbose:
                 print(f"   Found {len(remote_branches)} branches: {', '.join(remote_branches)}")
                 print(f"   Default branch ({self.repo_data['default_branch']}) files will be in root directory")
-                print(f"   Other branches will have their own directories")
+                print(f"   Other branches will be organized in branches directory")
             
-            # For non-default branches, create separate directories
-            for branch_name in remote_branches:
-                if branch_name != self.repo_data['default_branch']:
-                    if self.verbose:
-                        print(f"   Creating directory for branch: {branch_name}")
+            # Create branches directory for non-default branches: {repo_name}-{owner}_branches
+            branches_dir_name = f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_branches"
+            branches_dir = os.path.join(repo_path, branches_dir_name)
+            
+            # Only create if there are other branches
+            other_branches = [b for b in remote_branches if b != self.repo_data['default_branch']]
+            if other_branches:
+                os.makedirs(branches_dir, exist_ok=True)
+                self.repo_data['branches_dir_name'] = branches_dir_name
+                
+                if self.verbose:
+                    print(f"   Creating branches directory: {branches_dir_name}/")
+            
+            # For non-default branches, create separate directories inside branches folder
+            for branch_name in other_branches:
+                if self.verbose:
+                    print(f"   Creating directory for branch: {branch_name}")
+                
+                # Sanitize branch name for directory
+                sanitized_name = self._sanitize_branch_name(branch_name)
+                branch_dir = os.path.join(branches_dir, sanitized_name)
+                os.makedirs(branch_dir, exist_ok=True)
+                
+                # Checkout the branch
+                try:
+                    if branch_name not in [b.name for b in repo.heads]:
+                        repo.create_head(branch_name, f"origin/{branch_name}")
+                    repo.heads[branch_name].checkout()
                     
-                    # Create branch directory
-                    branch_dir = os.path.join(repo_path, f"{branch_name}_branch")
-                    os.makedirs(branch_dir, exist_ok=True)
-                    
-                    # Checkout the branch
-                    try:
-                        if branch_name not in [b.name for b in repo.heads]:
-                            repo.create_head(branch_name, f"origin/{branch_name}")
-                        repo.heads[branch_name].checkout()
+                    # Copy all files to branch directory (excluding .git and special directories)
+                    for item in os.listdir(repo_path):
+                        if (item == '.git' or 
+                            item == branches_dir_name or 
+                            item.endswith('_releases')):
+                            continue
                         
-                        # Copy all files to branch directory (excluding .git)
-                        for item in os.listdir(repo_path):
-                            if item == '.git' or item.endswith('_branch') or item == f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_releases":
-                                continue
+                        src_path = os.path.join(repo_path, item)
+                        dst_path = os.path.join(branch_dir, item)
+                        
+                        if os.path.isdir(src_path):
+                            shutil.copytree(src_path, dst_path, symlinks=True)
+                        else:
+                            shutil.copy2(src_path, dst_path)
                             
-                            src_path = os.path.join(repo_path, item)
-                            dst_path = os.path.join(branch_dir, item)
-                            
-                            if os.path.isdir(src_path):
-                                shutil.copytree(src_path, dst_path, symlinks=True)
-                            else:
-                                shutil.copy2(src_path, dst_path)
-                                
-                    except Exception as e:
-                        if self.verbose:
-                            print(f"     Warning: Could not process branch {branch_name}: {e}")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"     Warning: Could not process branch {branch_name}: {e}")
             
             # Checkout default branch to keep files in root
             try:
@@ -803,7 +844,8 @@ class GitArchiver:
         
         return "This git repository doesn't have a README.md file"
     
-    def upload_to_ia(self, repo_path, custom_metadata=None, includes_releases=False, includes_all_branches=False):
+    def upload_to_ia(self, repo_path, custom_metadata=None, includes_releases=False, 
+                     includes_all_branches=False, specific_branch=None, bundle_only=False):
         """Upload the repository to the Internet Archive"""
         # Generate timestamps - use current time for archival date and identifier
         archive_date = datetime.now()
@@ -825,18 +867,23 @@ class GitArchiver:
         
         # Build archive details for description
         archive_details = []
-        archive_details.append(f"Repository files")
-        
-        if includes_all_branches:
-            branch_count = self.repo_data.get('branch_count', 0)
-            archive_details.append(f"All {branch_count} branches")
+        if bundle_only:
+            archive_details.append("Git bundle only")
         else:
-            archive_details.append("Default branch")
-        
-        if includes_releases:
-            release_count = self.repo_data.get('downloaded_releases', 0)
-            if release_count > 0:
-                archive_details.append(f"{release_count} release(s) with assets")
+            archive_details.append("Repository files")
+            
+            if includes_all_branches:
+                branch_count = self.repo_data.get('branch_count', 0)
+                archive_details.append(f"All {branch_count} branches")
+            elif specific_branch:
+                archive_details.append(f"Branch: {specific_branch}")
+            else:
+                archive_details.append("Default branch")
+            
+            if includes_releases:
+                release_count = self.repo_data.get('downloaded_releases', 0)
+                if release_count > 0:
+                    archive_details.append(f"{release_count} release(s) with assets")
         
         # Build full description
         description_footer = f"""<br/><hr/>
@@ -869,10 +916,16 @@ class GitArchiver:
             self.repo_data['owner'], self.repo_data['repo_name']
         ]
         
-        if includes_releases:
-            subject_tags.append('releases')
-        if includes_all_branches:
-            subject_tags.append('branches')
+        if bundle_only:
+            subject_tags.append('bundle-only')
+        else:
+            if includes_releases:
+                subject_tags.append('releases')
+            if includes_all_branches:
+                subject_tags.append('branches')
+            elif specific_branch:
+                subject_tags.extend(['branch', specific_branch])
+                
         if self.repo_data.get('language'):
             subject_tags.append(self.repo_data['language'].lower())
         
@@ -891,7 +944,8 @@ class GitArchiver:
             'language': self.repo_data.get('language', 'Unknown'),
             'identifier': identifier,
             'scanner': f"iagitbetter Git Repository Mirroring Application {__version__}",
-            'totalcommits': str(self.repo_data.get('total_commits', 0))
+            'totalcommits': str(self.repo_data.get('total_commits', 0)),
+            'bundleonly': str(bundle_only)
         }
         
         # Add branch information
@@ -900,11 +954,14 @@ class GitArchiver:
             metadata['branchcount'] = str(self.repo_data.get('branch_count', 0))
             if self.repo_data.get('branches'):
                 metadata['branchlist'] = ';'.join(self.repo_data['branches'])
+        elif specific_branch:
+            metadata['specificbranch'] = specific_branch
+            metadata['allbranches'] = 'false'
         else:
             metadata['allbranches'] = 'false'
         
         # Add release information
-        if includes_releases:
+        if includes_releases and not bundle_only:
             metadata['includesreleases'] = 'true'
             metadata['releasecount'] = str(self.repo_data.get('downloaded_releases', 0))
             if self.repo_data.get('releases_dir_name'):
@@ -958,11 +1015,6 @@ class GitArchiver:
             bundle_path = self.create_git_bundle(repo_path)
             bundle_filename = os.path.basename(bundle_path) if bundle_path else None
             
-            # Get all repository files preserving structure
-            if self.verbose:
-                print("Collecting all repository files...")
-            repo_files = self.get_all_files(repo_path)
-            
             # Prepare files for upload - use dictionary format for proper naming
             files_to_upload = {}
             
@@ -970,29 +1022,39 @@ class GitArchiver:
             if bundle_path and os.path.exists(bundle_path):
                 files_to_upload[bundle_filename] = bundle_path
             
-            # Add all repository files with preserved directory structure
-            files_to_upload.update(repo_files)
+            # If not bundle-only mode, add all repository files
+            if not bundle_only:
+                if self.verbose:
+                    print("Collecting all repository files...")
+                repo_files = self.get_all_files(repo_path)
+                # Add all repository files with preserved directory structure
+                files_to_upload.update(repo_files)
             
             if self.verbose:
-                print(f"Uploading {len(files_to_upload)} files to Internet Archive")
+                if bundle_only:
+                    print(f"Uploading git bundle only to Internet Archive")
+                else:
+                    print(f"Uploading {len(files_to_upload)} files to Internet Archive")
                 print("This may take some time depending on repository size and connection speed")
                 
                 # Show what major components are being uploaded
                 components = []
                 if bundle_filename:
                     components.append("Git bundle")
-                if includes_all_branches:
-                    branches_dir = self.repo_data.get('branches_dir_name')
-                    if branches_dir:
-                        branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
-                        if branch_files:
-                            non_default_count = len([b for b in self.repo_data.get('branches', []) if b != self.repo_data.get('default_branch')])
-                            components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
-                if includes_releases and self.repo_data.get('releases_dir_name'):
-                    release_files = [f for f in files_to_upload.keys() if f.startswith(self.repo_data['releases_dir_name'])]
-                    if release_files:
-                        components.append(f"Releases directory ({len(release_files)} files)")
-                components.append("Repository files")
+                if not bundle_only:
+                    if includes_all_branches:
+                        branches_dir = self.repo_data.get('branches_dir_name')
+                        if branches_dir:
+                            branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
+                            if branch_files:
+                                non_default_count = len([b for b in self.repo_data.get('branches', []) if b != self.repo_data.get('default_branch')])
+                                components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
+                    if includes_releases and self.repo_data.get('releases_dir_name'):
+                        release_files = [f for f in files_to_upload.keys() if f.startswith(self.repo_data['releases_dir_name'])]
+                        if release_files:
+                            components.append(f"Releases directory ({len(release_files)} files)")
+                    if not bundle_only:
+                        components.append("Repository files")
                 print(f"   Components: {', '.join(components)}")
             
             # Parse internetarchive configuration file to get credentials
@@ -1091,7 +1153,8 @@ class GitArchiver:
         return custom_meta
     
     def run(self, repo_url, custom_metadata_string=None, verbose=True, check_updates=True, 
-           all_branches=False, releases=False, all_releases=False):
+           all_branches=False, specific_branch=None, releases=False, all_releases=False, 
+           bundle_only=False):
         """Main execution flow."""
         self.verbose = verbose
         
@@ -1114,18 +1177,20 @@ class GitArchiver:
             print(f"   Git Provider: {self.repo_data['git_site']}")
         
         # Clone repository
-        repo_path = self.clone_repository(repo_url, all_branches=all_branches)
+        repo_path = self.clone_repository(repo_url, all_branches=all_branches, specific_branch=specific_branch)
         
         # Download releases if requested
-        if releases:
+        if releases and not bundle_only:
             self.download_releases(repo_path, all_releases=all_releases)
         
         # Upload to Internet Archive
         identifier, metadata = self.upload_to_ia(
             repo_path, 
             custom_metadata,
-            includes_releases=releases,
-            includes_all_branches=all_branches
+            includes_releases=releases and not bundle_only,
+            includes_all_branches=all_branches,
+            specific_branch=specific_branch,
+            bundle_only=bundle_only
         )
         
         # Cleanup
@@ -1147,6 +1212,8 @@ Examples:
   %(prog)s --quiet https://github.com/user/repo
   %(prog)s --releases --all-releases https://github.com/user/repo
   %(prog)s --all-branches https://github.com/user/repo
+  %(prog)s --branch develop https://github.com/user/repo
+  %(prog)s --bundle-only https://github.com/user/repo
         """
     )
     
@@ -1158,17 +1225,26 @@ Examples:
                        help='Suppress verbose output')
     parser.add_argument('--no-update-check', action='store_true',
                        help='Skip checking for updates on PyPI')
+    parser.add_argument('--bundle-only', action='store_true',
+                       help='Only uploads the git bundle, not all files')
     parser.add_argument('--releases', action='store_true',
                        help='Download releases from the repository')
     parser.add_argument('--all-releases', action='store_true',
                        help='Download all releases (default: latest only)')
     parser.add_argument('--all-branches', action='store_true',
                        help='Clone and archive all branches')
+    parser.add_argument('--branch', type=str,
+                       help='Clone and archive a specific branch')
     parser.add_argument('--version', '-v', 
                        action='version', 
                        version=f'%(prog)s {__version__}')
     
     args = parser.parse_args()
+    
+    # Validate argument combinations
+    if args.all_branches and args.branch:
+        print("Error: Cannot specify both --all-branches and --branch")
+        sys.exit(1)
     
     # Create archiver instance and run
     archiver = GitArchiver(verbose=not args.quiet)
@@ -1179,8 +1255,10 @@ Examples:
             verbose=not args.quiet,
             check_updates=not args.no_update_check,
             all_branches=args.all_branches,
+            specific_branch=args.branch,
             releases=args.releases,
-            all_releases=args.all_releases
+            all_releases=args.all_releases,
+            bundle_only=args.bundle_only
         )
         if identifier:
             print("\n" + "="*60)

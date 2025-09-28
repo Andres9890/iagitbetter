@@ -24,7 +24,7 @@ __copyright__  = "Copyright 2025, Andres99"
 __main_name__  = 'iagitbetter'
 __license__    = 'GPLv3'
 __status__     = "Production/Stable"
-__version__    = "v1.0.3"
+__version__    = "v1.0.4"
 
 import os
 import sys
@@ -103,6 +103,7 @@ Examples:
   %(prog)s --releases --all-releases https://github.com/user/repo
   %(prog)s --releases --latest-release https://github.com/user/repo
   %(prog)s --all-branches https://github.com/user/repo
+  %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --all-branches --releases --all-releases https://github.com/user/repo
 
 Key improvements over iagitup:
@@ -142,6 +143,8 @@ release_group.add_argument('--latest-release', action='store_true',
 branch_group = parser.add_argument_group('branch options', 'Archive multiple branches')
 branch_group.add_argument('--all-branches', action='store_true',
                          help='Clone and archive all branches of the repository')
+branch_group.add_argument('--branch', type=str,
+                         help='Clone and archive a specific branch of the repository')
 
 args = parser.parse_args()
 
@@ -151,6 +154,10 @@ def main():
     # Validate argument combinations
     if args.all_releases and args.latest_release:
         print("Error: Cannot specify both --all-releases and --latest-release")
+        sys.exit(1)
+    
+    if args.all_branches and args.branch:
+        print("Error: Cannot specify both --all-branches and --branch")
         sys.exit(1)
     
     if args.releases and not args.all_releases and not args.latest_release:
@@ -201,26 +208,35 @@ def main():
             
             # Show what will be archived
             archive_components = []
-            archive_components.append("Repository files")
-            if args.all_branches:
-                archive_components.append("All branches")
+            if args.bundle_only:
+                archive_components.append("Git bundle only")
             else:
-                archive_components.append("Default branch")
-            if args.releases:
-                if args.all_releases:
-                    archive_components.append("All releases")
+                archive_components.append("Repository files")
+                if args.all_branches:
+                    archive_components.append("All branches")
+                elif args.branch:
+                    archive_components.append(f"Branch: {args.branch}")
                 else:
-                    archive_components.append("Latest release")
+                    archive_components.append("Default branch")
+                if args.releases:
+                    if args.all_releases:
+                        archive_components.append("All releases")
+                    else:
+                        archive_components.append("Latest release")
             print(f"   Will archive: {', '.join(archive_components)}")
             print()
         
         # Clone the repository
         if verbose:
             print(f"Downloading {URL} repository...")
-        repo_path = archiver.clone_repository(URL, all_branches=args.all_branches)
+        repo_path = archiver.clone_repository(
+            URL, 
+            all_branches=args.all_branches, 
+            specific_branch=args.branch
+        )
         
-        # Download releases if requested
-        if args.releases:
+        # Download releases if requested (skip for bundle-only mode)
+        if args.releases and not args.bundle_only:
             if verbose:
                 print("Downloading releases...")
             archiver.download_releases(repo_path, all_releases=args.all_releases)
@@ -229,8 +245,10 @@ def main():
         identifier, metadata = archiver.upload_to_ia(
             repo_path, 
             custom_metadata=custom_meta_dict,
-            includes_releases=args.releases,
-            includes_all_branches=args.all_branches
+            includes_releases=args.releases and not args.bundle_only,
+            includes_all_branches=args.all_branches,
+            specific_branch=args.branch,
+            bundle_only=args.bundle_only
         )
         
         # Output results
@@ -260,23 +278,28 @@ def main():
                 print(f"Topics: {metadata['topics']}")
             
             # Show what was archived
-            if args.all_branches:
-                branch_count = archiver.repo_data.get('branch_count', 0)
-                branches = archiver.repo_data.get('branches', [])
-                default_branch = archiver.repo_data.get('default_branch', 'main')
-                branches_dir = archiver.repo_data.get('branches_dir_name', '')
-                print(f"Branches: {branch_count} branches archived")
-                print(f"   Default branch ({default_branch}): Files in root directory")
-                other_branches = [b for b in branches if b != default_branch]
-                if other_branches and branches_dir:
-                    print(f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)")
-            if args.releases:
-                release_count = archiver.repo_data.get('downloaded_releases', 0)
-                releases_dir = archiver.repo_data.get('releases_dir_name', 'releases')
-                if args.all_releases:
-                    print(f"Releases: {release_count} releases archived in {releases_dir}/")
-                else:
-                    print(f"Releases: Latest release archived in {releases_dir}/")
+            if args.bundle_only:
+                print("Archive mode: Bundle only")
+            else:
+                if args.all_branches:
+                    branch_count = archiver.repo_data.get('branch_count', 0)
+                    branches = archiver.repo_data.get('branches', [])
+                    default_branch = archiver.repo_data.get('default_branch', 'main')
+                    branches_dir = archiver.repo_data.get('branches_dir_name', '')
+                    print(f"Branches: {branch_count} branches archived")
+                    print(f"   Default branch ({default_branch}): Files in root directory")
+                    other_branches = [b for b in branches if b != default_branch]
+                    if other_branches and branches_dir:
+                        print(f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)")
+                elif args.branch:
+                    print(f"Branch: {args.branch} archived")
+                if args.releases:
+                    release_count = archiver.repo_data.get('downloaded_releases', 0)
+                    releases_dir = archiver.repo_data.get('releases_dir_name', 'releases')
+                    if args.all_releases:
+                        print(f"Releases: {release_count} releases archived in {releases_dir}/")
+                    else:
+                        print(f"Releases: Latest release archived in {releases_dir}/")
             
             print(f"Archived repository URL:")
             print(f"    https://archive.org/details/{identifier}")
