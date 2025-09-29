@@ -2,7 +2,7 @@
 iagitbetter - Archiving any git repository to the Internet Archive
 """
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __author__ = "Andres99"
 __license__ = "GPL-3.0"
 

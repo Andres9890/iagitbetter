@@ -7,7 +7,7 @@ def read(fname):
 
 setup(
     name='iagitbetter',
-    version='1.0.4',
+    version='1.0.5',
     author='Andres99',
     description='Archiving any git repository to the Internet Archive',
     long_description=read('README.md'),
@@ -15,7 +15,7 @@ setup(
     url='https://github.com/Andres9890/iagitbetter',
     packages=find_packages(),
     license='GPL-3.0',
-    keywords='git archive internet-archive github gitlab bitbucket repository backup',
+    keywords='git archive internet-archive github gitlab bitbucket repository self-hosted gitea forgejo',
     platforms='any',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -25,6 +25,7 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Software Development :: Version Control :: Git',
         'Topic :: System :: Archiving',
     ],

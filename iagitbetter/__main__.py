@@ -24,7 +24,7 @@ __copyright__  = "Copyright 2025, Andres99"
 __main_name__  = 'iagitbetter'
 __license__    = 'GPLv3'
 __status__     = "Production/Stable"
-__version__    = "v1.0.4"
+__version__    = "v1.0.5"
 
 import os
 import sys
@@ -95,6 +95,7 @@ parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog="""
 Examples:
+  # Public repositories
   %(prog)s https://github.com/user/repo
   %(prog)s https://gitlab.com/user/repo
   %(prog)s https://bitbucket.org/user/repo
@@ -105,10 +106,17 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --all-branches --releases --all-releases https://github.com/user/repo
+  
+  # Self-hosted repositories
+  %(prog)s --git-provider-type gitlab --api-url https://gitlab.example.com/api/v4 https://git.example.com/user/repo
+  %(prog)s --git-provider-type gitea --api-token example https://git.example.com/user/repo
+  %(prog)s --git-provider-type gitlab --api-token example --all-branches --releases https://gitlab.example.com/user/repo
 
 Key improvements over iagitup:
   - Works with ALL git providers (not just GitHub)
+  - Self-hosted git instance support (GitLab, Gitea, Forgejo, etc.)
   - Uploads complete file structure (not just bundle)
+  - Preserves important directories (.github/, .gitlab/, .gitea/)
   - Clean naming: {owner} - {repo}
   - Adds originalrepo and gitsite metadata
   - Preserves directory structure
@@ -117,6 +125,7 @@ Key improvements over iagitup:
   - Shows detailed upload progress like tubeup
   - Downloads releases from supported git providers
   - Supports archiving all branches of a repository
+  - API token authentication for private repositories
     """
 )
 
@@ -146,6 +155,16 @@ branch_group.add_argument('--all-branches', action='store_true',
 branch_group.add_argument('--branch', type=str,
                          help='Clone and archive a specific branch of the repository')
 
+selfhosted_group = parser.add_argument_group('self-hosted instance options', 
+                                              'Options for self-hosted git instances')
+selfhosted_group.add_argument('--git-provider-type', type=str, 
+                              choices=['github', 'gitlab', 'gitea', 'bitbucket'],
+                              help='Specify the git provider type for self-hosted instances')
+selfhosted_group.add_argument('--api-url', type=str,
+                              help='Custom API URL for self-hosted instances (e.g., https://git.example.com/api/v1)')
+selfhosted_group.add_argument('--api-token', type=str,
+                              help='API token for authentication with private/self-hosted repositories')
+
 args = parser.parse_args()
 
 def main():
@@ -164,9 +183,14 @@ def main():
         # Default to latest release when --releases is specified without other options
         args.latest_release = True
     
-    # Create archiver instance with verbose setting
+    # Create archiver instance with verbose setting and self-hosted parameters
     verbose = not args.quiet
-    archiver = iagitbetter.GitArchiver(verbose=verbose)
+    archiver = iagitbetter.GitArchiver(
+        verbose=verbose,
+        git_provider_type=args.git_provider_type if hasattr(args, 'git_provider_type') else None,
+        api_url=args.api_url if hasattr(args, 'api_url') else None,
+        api_token=args.api_token if hasattr(args, 'api_token') else None
+    )
     
     # Check IA credentials first
     archiver.check_ia_credentials()

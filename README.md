@@ -8,17 +8,20 @@
 [![License Button]][License Link]
 [![PyPI Button]][PyPI Link]
 
-iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/). An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org.
+iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
 
 - This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them
 
 ## Features
 
 - Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and more)
+- Self-hosted git instance support (GitLab, Gitea, Forgejo, etc)
 - Downloads and uploads the entire repository file structure
+- Preserves provider directories like `.github/`, `.gitlab/`, `.gitea/` folders
 - Download repository releases with assets from supported providers
 - Clone and archive all branches of a repository with proper directory structure
 - Automatically fetches repository metadata from git provider APIs when available
+- API token authentication for private and self-hosted repositories
 - Uses format `{owner} - {repo}` for item titles
 - Includes stars, forks, programming language, license, topics, and more metadata
 - Keeps the original repository folder structure in the archive
@@ -72,18 +75,17 @@ iagitbetter <git_url> [options]
 ### Branch Options
 
 - `--all-branches` – clone and archive all branches of the repository
-- `--branch` – clone and archive a branch of the repository
+- `--branch <name>` – clone and archive a specific branch of the repository
+
+### Self-Hosted Instance Options
+
+- `--git-provider-type {github,gitlab,gitea,bitbucket}` – specify the git provider type for self-hosted instances
+- `--api-url <url>` – custom API URL for self-hosted instances (e.g., `https://git.example.com/api/v1`)
+- `--api-token <token>` – API token for authentication with private/self-hosted repositories
 
 ## Supported Git Providers
 
-iagitbetter works with any git repository that can be cloned publicly. It has enhanced support with automatic metadata fetching for:
-
-- GitHub (github.com)
-- GitLab (gitlab.com)
-- BitBucket (bitbucket.org)
-- Codeberg (codeberg.org)
-- Gitea (gitea.com)
-- Any other git provider
+See [SUPPORTED_PROVIDERS.md](SUPPORTED_PROVIDERS.md) for detailed information about each provider.
 
 ### Automatic Metadata Collection
 
@@ -98,6 +100,7 @@ For supported providers, iagitbetter automatically fetches:
 - Repository size and statistics
 - Homepage URL
 - Issue and wiki availability
+- User/organization avatar
 
 ### Release Support
 
@@ -126,6 +129,29 @@ iagitbetter https://bitbucket.org/user/repository
 iagitbetter https://git.example.com/user/repository.git
 ```
 
+### Self-Hosted Repositories
+
+```bash
+# Self-hosted GitLab (auto-detection)
+iagitbetter https://gitlab.example.com/user/repository
+
+# Self-hosted GitLab with API configuration
+iagitbetter --git-provider-type gitlab \
+  --api-url https://gitlab.example.com/api/v4 \
+  https://gitlab.example.com/user/repository
+
+# Self-hosted Gitea/Forgejo with authentication
+iagitbetter --git-provider-type gitea \
+  --api-token your_token_here \
+  https://git.example.com/user/repository
+
+# Private repository on self-hosted instance
+iagitbetter --git-provider-type gitlab \
+  --api-url https://gitlab.example.com/api/v4 \
+  --api-token glpat-xxxxxxxxxxxxx \
+  https://gitlab.example.com/user/private-repo
+```
+
 ### Release Archiving
 
 ```bash
@@ -145,6 +171,9 @@ iagitbetter --releases --latest-release https://github.com/user/repo
 # Archive all branches of a repository
 iagitbetter --all-branches https://github.com/user/repo
 
+# Archive a specific branch
+iagitbetter --branch test https://github.com/user/repo
+
 # Archive all branches AND all releases
 iagitbetter --all-branches --releases --all-releases https://github.com/user/repo
 ```
@@ -160,7 +189,31 @@ iagitbetter --bundle-only https://github.com/user/repo
 
 # Quiet mode with all features
 iagitbetter --quiet --all-branches --releases --all-releases https://github.com/user/repo
+
+# Self-hosted with all features
+iagitbetter --git-provider-type gitlab \
+  --api-token glpat-xxxxxxxxxxxxx \
+  --all-branches \
+  --releases --all-releases \
+  https://gitlab.example.com/user/repo
 ```
+
+## API Token Generation
+
+### GitHub - GitHub Enterprise
+1. Go to Settings → Developer settings → Personal access tokens
+2. Generate new token (classic) with `repo` scope
+3. Use with `--api-token ghp_...`
+
+### GitLab - Self-Hosted GitLab
+1. Go to User Settings → Access Tokens
+2. Create token with `read_api` and `read_repository` scopes
+3. Use with `--api-token glpat-...`
+
+### Gitea - Forgejo
+1. Go to Settings → Applications → Generate New Token
+2. Select `read:repository` permission
+3. Use with `--api-token ...`
 
 ## Repository Structure Preservation
 
@@ -168,6 +221,9 @@ By default, iagitbetter preserves the complete repository structure when uploadi
 
 ```
 README.md
+.github/
+  └── workflows/
+      └── lint.yml
 src/
   ├── main.py
   └── utils/
@@ -178,22 +234,27 @@ tests/
   └── test_main.py
 ```
 
+The archive will contain all files exactly as shown, including the `.github/` directory with workflows
+
 ### With --all-branches
 When using `--all-branches`, the structure becomes:
 ```
 README.md
+.github/workflows/lint.yml
 src/main.py
 src/utils/helper.py
 docs/guide.md
 tests/test_main.py
-develop_branch/
-  ├── README.md
-  ├── src/main.py
-  └── ...
-feature-xyz_branch/
-  ├── README.md
-  ├── src/main.py
-  └── ...
+{repo-name}-{owner}_branches/
+  └── develop/
+      ├── README.md
+      ├── .github/workflows/ci.yml
+      ├── src/main.py
+      └── ...
+  └── feature/
+      ├── README.md
+      ├── src/main.py
+      └── ...
 {owner}-{repo}.bundle
 ```
 
@@ -201,15 +262,14 @@ feature-xyz_branch/
 When using `--releases`, a releases directory is added:
 ```
 README.md
+.github/workflows/ci.yml
 src/main.py
 docs/guide.md
 {owner}-{repo}_releases/
   └── v1.0.0/
       ├── v1.0.0.info.json
       ├── v1.0.0-source.zip
-      ├── v1.0.0-source.tar.gz
-      └── assets/
-          └── example.exe
+      └── v1.0.0-source.tar.gz
 {owner}-{repo}.bundle
 ```
 
@@ -221,18 +281,20 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 
 ### Repository Analysis
 1. `iagitbetter` parses the git URL to identify the provider and repository details
-2. It attempts to fetch additional metadata from the provider's API (if it's a supported provider)
-3. Repository information is extracted including owner, name, and provider details
+2. For self-hosted instances, it detects or uses the specified provider type
+3. It attempts to fetch additional metadata from the provider's API (if supported)
+4. Repository information is extracted including owner, name, and provider details
 
 ### Repository Download
 1. The git repository is cloned to a temporary directory using GitPython
 2. If `--all-branches` is specified, all remote branches are fetched and separate directories are created for each non-default branch
 3. The first commit date is extracted for the creation date
 4. A git bundle is created with all branches and tags
+5. User/organization avatar is downloaded if available
 
 ### Branch Processing (when `--all-branches` is used)
 1. All remote branches are fetched from the repository
-2. For each non-default branch, a separate directory named `{owner}-{repo}_branches/{branch-name}` is created
+2. For each non-default branch, a separate directory named `{repo-name}-{owner}_branches/{branch-name}` is created
 3. Each branch is checked out and its files are copied to the respective branch directory
 4. The default branch files remain in the root directory
 5. This creates a clear separation of branches in the archive
@@ -254,13 +316,15 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
    - API-fetched metadata (stars, forks, language, etc)
    - Branch and releases information
 2. All repository files are uploaded preserving directory structure
-3. Branches are included (if archived with `--all-branches`)
-4. Release files are included (if requested)
-5. The git bundle is included
-6. README.md is converted to HTML for the item description
+3. Provider directories like `.github/`, `.gitlab/`, `.gitea/` are preserved
+4. Branches are included (if archived with `--all-branches`)
+5. Release files are included (if requested)
+6. The git bundle is included
+7. User/organization avatar is included
+8. README.md is converted to HTML for the item description
 
 ### Archive Format
-- Identifier: `{owner}-{repo}-YYYYMMDD-HHMMSS`
+- Identifier: `{owner}-{repo}-{timestamp}`
 - Title: `{owner} - {repo}`
 - Date: First commit date (for historical accuracy)
 - Files: Complete repository structure, branches (if requested), releases (if requested), and git bundle
@@ -289,21 +353,24 @@ git checkout branch-name
 
 ## Release Information
 
-When releases are archived, they can be found in the `{repo-owner}-{repo}_releases/` directory of the archive, Each release includes:
+When releases are archived, they can be found in the `{owner}-{repo}_releases/` directory of the archive, Each release includes:
 
 - `{version}.info.json` - Complete release metadata
 - `{version}-source.zip` - Source code archive
 - `{version}-source.tar.gz` - Source code tarball
-- Asset files
+- binaries
 
 ## Key Improvements over iagitup
 
-- Works with any git provider
+- Works with any git provider (public and self-hosted)
+- Self-hosted git instance support with authentication
 - Uploads the entire repository file structure
+- Preserves provider directories (`.github/`, `.gitlab/`, `.gitea/`)
 - Can archive all branches of a repository
-- Automatically fetches repository information
-- Uses first commit date
-- Leverages git provider APIs for metadata
+- Automatically fetches repository information from APIs
+- Downloads user/organization avatars
+- Uses first commit date for historical accuracy
+- Leverages git provider APIs for comprehensive metadata
 
 ## Requirements
 
@@ -311,3 +378,20 @@ When releases are archived, they can be found in the `{repo-owner}-{repo}_releas
 - Git
 - Internet Archive account and credentials
 - Required dependencies in the [`requirements.txt`](requirements.txt) file
+
+## Troubleshooting
+
+### Authentication Issues
+- Ensure your API token has the correct permissions
+- For self-hosted instances, verify the API URL is correct
+- Check that the token hasn't expired
+
+### API Metadata Fetching
+- If metadata isn't fetched, the repository will still be archived
+- Use `--git-provider-type` to help with provider detection
+- Some self-hosted instances may have APIs disabled
+
+### Private Repositories
+- Always use `--api-token` for private repositories
+- Ensure the token has read access to the repository
+- For self-hosted instances, you may need both `--api-url` and `--api-token`

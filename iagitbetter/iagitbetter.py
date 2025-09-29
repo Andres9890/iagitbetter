@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -74,11 +74,14 @@ def check_for_updates(current_version, verbose=True):
         pass
 
 class GitArchiver:
-    def __init__(self, verbose=True, ia_config_path=None):
+    def __init__(self, verbose=True, ia_config_path=None, git_provider_type=None, api_url=None, api_token=None):
         self.temp_dir = None
         self.repo_data = {}
         self.verbose = verbose
         self.ia_config_path = ia_config_path
+        self.git_provider_type = git_provider_type  # e.g., 'github', 'gitlab', 'gitea'
+        self.api_url = api_url  # Custom API URL for self-hosted instances
+        self.api_token = api_token  # API token for authentication
         
     def extract_repo_info(self, repo_url):
         """Extract repository information from any git URL"""
@@ -90,8 +93,24 @@ class GitArchiver:
         if domain.startswith('www.'):
             domain = domain[4:]
         
-        # Extract git site name (without TLD)
-        git_site = domain.split('.')[0]
+        # Detect git provider type
+        if not self.git_provider_type:
+            # Auto-detect based on domain
+            if 'github' in domain:
+                git_site = 'github'
+            elif 'gitlab' in domain:
+                git_site = 'gitlab'
+            elif 'bitbucket' in domain:
+                git_site = 'bitbucket'
+            elif 'codeberg' in domain:
+                git_site = 'codeberg'
+            elif 'gitea' in domain:
+                git_site = 'gitea'
+            else:
+                # For unknown/self-hosted, use domain name or 'git'
+                git_site = domain.split('.')[0] if '.' in domain else 'git'
+        else:
+            git_site = self.git_provider_type
         
         # Extract path components
         path_parts = parsed.path.strip('/').split('/')
@@ -121,162 +140,238 @@ class GitArchiver:
         
         return self.repo_data
     
-    def _fetch_api_metadata(self):
-        """Try to fetch metadata from various git provider APIs"""
+    def _build_api_url(self):
+        """Build API URL for self-hosted or public instances"""
         domain = self.repo_data['domain']
         owner = self.repo_data['owner']
         repo_name = self.repo_data['repo_name']
         
-        api_endpoints = {
-            'github.com': f"https://api.github.com/repos/{owner}/{repo_name}",
-            'gitlab.com': f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}",
-            'bitbucket.org': f"https://api.bitbucket.org/2.0/repositories/{owner}/{repo_name}",
-            'codeberg.org': f"https://codeberg.org/api/v1/repos/{owner}/{repo_name}",
-            'gitea.com': f"https://gitea.com/api/v1/repos/{owner}/{repo_name}",
-        }
+        # If custom API URL is provided, use it
+        if self.api_url:
+            # Replace placeholders if present
+            return self.api_url.rstrip('/') + f"/repos/{owner}/{repo_name}"
         
-        if domain in api_endpoints:
-            try:
-                response = requests.get(api_endpoints[domain], timeout=10)
-                if response.status_code == 200:
-                    api_data = response.json()
-                    self._parse_api_response(api_data, domain)
-            except Exception as e:
-                if self.verbose:
-                    print(f"Note: Could not fetch API metadata: {e}")
+        # Otherwise, use standard endpoints based on detected provider
+        git_site = self.repo_data['git_site']
+        
+        if git_site == 'github' or domain == 'github.com':
+            return f"https://api.github.com/repos/{owner}/{repo_name}"
+        elif git_site == 'gitlab' or domain == 'gitlab.com':
+            return f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}"
+        elif git_site == 'bitbucket' or domain == 'bitbucket.org':
+            return f"https://api.bitbucket.org/2.0/repositories/{owner}/{repo_name}"
+        elif git_site in ['codeberg', 'gitea'] or 'gitea' in domain or domain == 'codeberg.org':
+            # For self-hosted Gitea/Forgejo instances
+            base_url = f"https://{domain}"
+            return f"{base_url}/api/v1/repos/{owner}/{repo_name}"
+        else:
+            # Try Gitea API format as fallback for unknown self-hosted instances
+            base_url = f"https://{domain}"
+            return f"{base_url}/api/v1/repos/{owner}/{repo_name}"
     
-    def _parse_api_response(self, api_data, domain):
+    def _fetch_api_metadata(self):
+        """Try to fetch metadata from various git provider APIs"""
+        try:
+            api_url = self._build_api_url()
+            
+            # Prepare headers for authentication
+            headers = {}
+            if self.api_token:
+                git_site = self.repo_data.get('git_site', '')
+                if git_site == 'github' or 'github' in self.repo_data['domain']:
+                    headers['Authorization'] = f'token {self.api_token}'
+                elif git_site == 'gitlab' or 'gitlab' in self.repo_data['domain']:
+                    headers['PRIVATE-TOKEN'] = self.api_token
+                else:
+                    # Generic bearer token for other providers
+                    headers['Authorization'] = f'token {self.api_token}'
+            
+            if self.verbose:
+                print(f"   Fetching metadata from API...")
+            
+            response = requests.get(api_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                api_data = response.json()
+                self._parse_api_response(api_data)
+            elif response.status_code == 404:
+                if self.verbose:
+                    print(f"   Note: Repository not found via API (may be private or API not available)")
+            elif response.status_code == 401:
+                if self.verbose:
+                    print(f"   Note: API authentication required. Use --api-token for private repositories")
+            else:
+                if self.verbose:
+                    print(f"   Note: Could not fetch API metadata (status {response.status_code})")
+        except Exception as e:
+            if self.verbose:
+                print(f"   Note: Could not fetch API metadata: {e}")
+    
+    def _parse_api_response(self, api_data):
         """Parse API response based on the git provider"""
-        if domain == 'github.com':
-            self.repo_data.update({
-                'description': api_data.get('description', ''),
-                'created_at': api_data.get('created_at', ''),
-                'updated_at': api_data.get('updated_at', ''),
-                'pushed_at': api_data.get('pushed_at', ''),
-                'language': api_data.get('language', ''),
-                'stars': api_data.get('stargazers_count', 0),
-                'forks': api_data.get('forks_count', 0),
-                'watchers': api_data.get('watchers_count', 0),
-                'subscribers': api_data.get('subscribers_count', 0),
-                'open_issues': api_data.get('open_issues_count', 0),
-                'homepage': api_data.get('homepage', ''),
-                'topics': api_data.get('topics', []),
-                'license': api_data.get('license', {}).get('name', '') if api_data.get('license') else '',
-                'default_branch': api_data.get('default_branch', 'main'),
-                'has_wiki': api_data.get('has_wiki', False),
-                'has_pages': api_data.get('has_pages', False),
-                'has_projects': api_data.get('has_projects', False),
-                'has_issues': api_data.get('has_issues', False),
-                'archived': api_data.get('archived', False),
-                'disabled': api_data.get('disabled', False),
-                'private': api_data.get('private', False),
-                'fork': api_data.get('fork', False),
-                'size': api_data.get('size', 0),
-                'network_count': api_data.get('network_count', 0),
-                'clone_url': api_data.get('clone_url', ''),
-                'ssh_url': api_data.get('ssh_url', ''),
-                'svn_url': api_data.get('svn_url', ''),
-                'mirror_url': api_data.get('mirror_url', ''),
-                'visibility': api_data.get('visibility', 'public'),
-                'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
-            })
-        elif domain == 'gitlab.com':
-            # Handle GitLab avatar URL - prefer project-level, then namespace, handle relative URLs
-            avatar_url = ''
-            
-            # Try project-level avatar first
-            if api_data.get('avatar_url'):
-                avatar_url = api_data['avatar_url']
-            # Fall back to namespace avatar for group-owned projects
-            elif api_data.get('namespace', {}).get('avatar_url'):
-                avatar_url = api_data['namespace']['avatar_url']
-            
-            # Handle relative URLs by prefixing with instance URL
-            if avatar_url and not avatar_url.startswith(('http://', 'https://')):
-                instance_url = f"https://{domain}"
-                avatar_url = f"{instance_url}{avatar_url}" if avatar_url.startswith('/') else f"{instance_url}/{avatar_url}"
-            
-            self.repo_data.update({
-                'description': api_data.get('description', ''),
-                'created_at': api_data.get('created_at', ''),
-                'updated_at': api_data.get('updated_at', ''),
-                'pushed_at': api_data.get('last_activity_at', ''),
-                'stars': api_data.get('star_count', 0),
-                'forks': api_data.get('forks_count', 0),
-                'topics': api_data.get('topics', []),
-                'default_branch': api_data.get('default_branch', 'main'),
-                'archived': api_data.get('archived', False),
-                'private': api_data.get('visibility', 'public') != 'public',
-                'fork': api_data.get('forked_from_project') is not None,
-                'open_issues': api_data.get('open_issues_count', 0),
-                'has_wiki': api_data.get('wiki_enabled', False),
-                'has_pages': api_data.get('pages_enabled', False),
-                'has_issues': api_data.get('issues_enabled', False),
-                'clone_url': api_data.get('http_url_to_repo', ''),
-                'ssh_url': api_data.get('ssh_url_to_repo', ''),
-                'web_url': api_data.get('web_url', ''),
-                'namespace': api_data.get('namespace', {}).get('name', ''),
-                'path_with_namespace': api_data.get('path_with_namespace', ''),
-                'visibility': api_data.get('visibility', 'public'),
-                'merge_requests_enabled': api_data.get('merge_requests_enabled', False),
-                'ci_enabled': api_data.get('builds_enabled', False),
-                'shared_runners_enabled': api_data.get('shared_runners_enabled', False),
-                'avatar_url': avatar_url,
-                'project_id': api_data.get('id', '')
-            })
-        elif domain == 'bitbucket.org':
-            self.repo_data.update({
-                'description': api_data.get('description', ''),
-                'created_at': api_data.get('created_on', ''),
-                'updated_at': api_data.get('updated_on', ''),
-                'language': api_data.get('language', ''),
-                'private': api_data.get('is_private', False),
-                'fork': api_data.get('parent') is not None,
-                'size': api_data.get('size', 0),
-                'has_wiki': api_data.get('has_wiki', False),
-                'has_issues': api_data.get('has_issues', False),
-                'clone_url': api_data.get('links', {}).get('clone', [{}])[0].get('href', ''),
-                'homepage': api_data.get('website', ''),
-                'scm': api_data.get('scm', 'git'),
-                'mainbranch': api_data.get('mainbranch', {}).get('name', 'main'),
-                'project': api_data.get('project', {}).get('name', '') if api_data.get('project') else '',
-                'owner_type': api_data.get('owner', {}).get('type', ''),
-                'owner_display_name': api_data.get('owner', {}).get('display_name', ''),
-                'avatar_url': api_data.get('owner', {}).get('links', {}).get('avatar', {}).get('href', '') if api_data.get('owner') else ''
-            })
-        elif domain in ['codeberg.org', 'gitea.com']:
-            # Gitea/Forgejo API (Codeberg uses Forgejo)
-            self.repo_data.update({
-                'description': api_data.get('description', ''),
-                'created_at': api_data.get('created_at', ''),
-                'updated_at': api_data.get('updated_at', ''),
-                'language': api_data.get('language', ''),
-                'stars': api_data.get('stars_count', 0),
-                'forks': api_data.get('forks_count', 0),
-                'watchers': api_data.get('watchers_count', 0),
-                'open_issues': api_data.get('open_issues_count', 0),
-                'homepage': api_data.get('website', ''),
-                'default_branch': api_data.get('default_branch', 'main'),
-                'archived': api_data.get('archived', False),
-                'private': api_data.get('private', False),
-                'fork': api_data.get('fork', False),
-                'size': api_data.get('size', 0),
-                'has_wiki': api_data.get('has_wiki', False),
-                'has_issues': api_data.get('has_issues', False),
-                'has_projects': api_data.get('has_projects', False),
-                'has_pull_requests': api_data.get('has_pull_requests', False),
-                'clone_url': api_data.get('clone_url', ''),
-                'ssh_url': api_data.get('ssh_url', ''),
-                'html_url': api_data.get('html_url', ''),
-                'mirror': api_data.get('mirror', False),
-                'template': api_data.get('template', False),
-                'empty': api_data.get('empty', False),
-                'permissions': api_data.get('permissions', {}),
-                'internal_tracker': api_data.get('internal_tracker', {}),
-                'external_tracker': api_data.get('external_tracker', {}),
-                'external_wiki': api_data.get('external_wiki', {}),
-                'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
-            })
+        # Detect provider type from response structure if not already known
+        if 'stargazers_count' in api_data and 'clone_url' in api_data:
+            # GitHub-like API
+            self._parse_github_response(api_data)
+        elif 'star_count' in api_data and 'path_with_namespace' in api_data:
+            # GitLab-like API
+            self._parse_gitlab_response(api_data)
+        elif 'scm' in api_data and api_data.get('scm') in ['git', 'hg']:
+            # Bitbucket API
+            self._parse_bitbucket_response(api_data)
+        elif 'stars_count' in api_data:
+            # Gitea/Forgejo API
+            self._parse_gitea_response(api_data)
+        else:
+            # Try to extract common fields
+            self._parse_generic_response(api_data)
+    
+    def _parse_github_response(self, api_data):
+        """Parse GitHub API response"""
+        self.repo_data.update({
+            'description': api_data.get('description', ''),
+            'created_at': api_data.get('created_at', ''),
+            'updated_at': api_data.get('updated_at', ''),
+            'pushed_at': api_data.get('pushed_at', ''),
+            'language': api_data.get('language', ''),
+            'stars': api_data.get('stargazers_count', 0),
+            'forks': api_data.get('forks_count', 0),
+            'watchers': api_data.get('watchers_count', 0),
+            'subscribers': api_data.get('subscribers_count', 0),
+            'open_issues': api_data.get('open_issues_count', 0),
+            'homepage': api_data.get('homepage', ''),
+            'topics': api_data.get('topics', []),
+            'license': api_data.get('license', {}).get('name', '') if api_data.get('license') else '',
+            'default_branch': api_data.get('default_branch', 'main'),
+            'has_wiki': api_data.get('has_wiki', False),
+            'has_pages': api_data.get('has_pages', False),
+            'has_projects': api_data.get('has_projects', False),
+            'has_issues': api_data.get('has_issues', False),
+            'archived': api_data.get('archived', False),
+            'disabled': api_data.get('disabled', False),
+            'private': api_data.get('private', False),
+            'fork': api_data.get('fork', False),
+            'size': api_data.get('size', 0),
+            'network_count': api_data.get('network_count', 0),
+            'clone_url': api_data.get('clone_url', ''),
+            'ssh_url': api_data.get('ssh_url', ''),
+            'svn_url': api_data.get('svn_url', ''),
+            'mirror_url': api_data.get('mirror_url', ''),
+            'visibility': api_data.get('visibility', 'public'),
+            'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
+        })
+    
+    def _parse_gitlab_response(self, api_data):
+        """Parse GitLab API response"""
+        # Handle GitLab avatar URL - prefer project-level, then namespace, handle relative URLs
+        avatar_url = ''
+        
+        # Try project-level avatar first
+        if api_data.get('avatar_url'):
+            avatar_url = api_data['avatar_url']
+        # Fall back to namespace avatar for group-owned projects
+        elif api_data.get('namespace', {}).get('avatar_url'):
+            avatar_url = api_data['namespace']['avatar_url']
+        
+        # Handle relative URLs by prefixing with instance URL
+        if avatar_url and not avatar_url.startswith(('http://', 'https://')):
+            instance_url = f"https://{self.repo_data['domain']}"
+            avatar_url = f"{instance_url}{avatar_url}" if avatar_url.startswith('/') else f"{instance_url}/{avatar_url}"
+        
+        self.repo_data.update({
+            'description': api_data.get('description', ''),
+            'created_at': api_data.get('created_at', ''),
+            'updated_at': api_data.get('updated_at', ''),
+            'pushed_at': api_data.get('last_activity_at', ''),
+            'stars': api_data.get('star_count', 0),
+            'forks': api_data.get('forks_count', 0),
+            'topics': api_data.get('topics', []),
+            'default_branch': api_data.get('default_branch', 'main'),
+            'archived': api_data.get('archived', False),
+            'private': api_data.get('visibility', 'public') != 'public',
+            'fork': api_data.get('forked_from_project') is not None,
+            'open_issues': api_data.get('open_issues_count', 0),
+            'has_wiki': api_data.get('wiki_enabled', False),
+            'has_pages': api_data.get('pages_enabled', False),
+            'has_issues': api_data.get('issues_enabled', False),
+            'clone_url': api_data.get('http_url_to_repo', ''),
+            'ssh_url': api_data.get('ssh_url_to_repo', ''),
+            'web_url': api_data.get('web_url', ''),
+            'namespace': api_data.get('namespace', {}).get('name', ''),
+            'path_with_namespace': api_data.get('path_with_namespace', ''),
+            'visibility': api_data.get('visibility', 'public'),
+            'merge_requests_enabled': api_data.get('merge_requests_enabled', False),
+            'ci_enabled': api_data.get('builds_enabled', False),
+            'shared_runners_enabled': api_data.get('shared_runners_enabled', False),
+            'avatar_url': avatar_url,
+            'project_id': api_data.get('id', '')
+        })
+    
+    def _parse_bitbucket_response(self, api_data):
+        """Parse Bitbucket API response"""
+        self.repo_data.update({
+            'description': api_data.get('description', ''),
+            'created_at': api_data.get('created_on', ''),
+            'updated_at': api_data.get('updated_on', ''),
+            'language': api_data.get('language', ''),
+            'private': api_data.get('is_private', False),
+            'fork': api_data.get('parent') is not None,
+            'size': api_data.get('size', 0),
+            'has_wiki': api_data.get('has_wiki', False),
+            'has_issues': api_data.get('has_issues', False),
+            'clone_url': api_data.get('links', {}).get('clone', [{}])[0].get('href', ''),
+            'homepage': api_data.get('website', ''),
+            'scm': api_data.get('scm', 'git'),
+            'mainbranch': api_data.get('mainbranch', {}).get('name', 'main'),
+            'project': api_data.get('project', {}).get('name', '') if api_data.get('project') else '',
+            'owner_type': api_data.get('owner', {}).get('type', ''),
+            'owner_display_name': api_data.get('owner', {}).get('display_name', ''),
+            'avatar_url': api_data.get('owner', {}).get('links', {}).get('avatar', {}).get('href', '') if api_data.get('owner') else ''
+        })
+    
+    def _parse_gitea_response(self, api_data):
+        """Parse Gitea/Forgejo API response"""
+        self.repo_data.update({
+            'description': api_data.get('description', ''),
+            'created_at': api_data.get('created_at', ''),
+            'updated_at': api_data.get('updated_at', ''),
+            'language': api_data.get('language', ''),
+            'stars': api_data.get('stars_count', 0),
+            'forks': api_data.get('forks_count', 0),
+            'watchers': api_data.get('watchers_count', 0),
+            'open_issues': api_data.get('open_issues_count', 0),
+            'homepage': api_data.get('website', ''),
+            'default_branch': api_data.get('default_branch', 'main'),
+            'archived': api_data.get('archived', False),
+            'private': api_data.get('private', False),
+            'fork': api_data.get('fork', False),
+            'size': api_data.get('size', 0),
+            'has_wiki': api_data.get('has_wiki', False),
+            'has_issues': api_data.get('has_issues', False),
+            'has_projects': api_data.get('has_projects', False),
+            'has_pull_requests': api_data.get('has_pull_requests', False),
+            'clone_url': api_data.get('clone_url', ''),
+            'ssh_url': api_data.get('ssh_url', ''),
+            'html_url': api_data.get('html_url', ''),
+            'mirror': api_data.get('mirror', False),
+            'template': api_data.get('template', False),
+            'empty': api_data.get('empty', False),
+            'permissions': api_data.get('permissions', {}),
+            'internal_tracker': api_data.get('internal_tracker', {}),
+            'external_tracker': api_data.get('external_tracker', {}),
+            'external_wiki': api_data.get('external_wiki', {}),
+            'avatar_url': api_data.get('owner', {}).get('avatar_url', '') if api_data.get('owner') else ''
+        })
+    
+    def _parse_generic_response(self, api_data):
+        """Parse generic API response for unknown providers"""
+        # Extract common fields that might exist
+        self.repo_data.update({
+            'description': api_data.get('description', ''),
+            'default_branch': api_data.get('default_branch', api_data.get('main_branch', 'main')),
+            'private': api_data.get('private', api_data.get('is_private', False)),
+            'fork': api_data.get('fork', api_data.get('is_fork', False)),
+            'archived': api_data.get('archived', False),
+        })
     
     def download_avatar(self, repo_path):
         """Download user avatar if available and save with username as filename"""
@@ -339,10 +434,13 @@ class GitArchiver:
         releases = []
         
         try:
-            if domain == 'github.com':
+            if domain == 'github.com' or self.repo_data['git_site'] == 'github':
                 # GitHub releases API
                 url = f"https://api.github.com/repos/{owner}/{repo_name}/releases"
-                response = requests.get(url, timeout=10)
+                headers = {}
+                if self.api_token and 'github' in domain:
+                    headers['Authorization'] = f'token {self.api_token}'
+                response = requests.get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
                     api_releases = response.json()
                     for release in api_releases:
@@ -370,12 +468,15 @@ class GitArchiver:
                         
                         releases.append(release_data)
             
-            elif domain == 'gitlab.com':
+            elif domain == 'gitlab.com' or self.repo_data['git_site'] == 'gitlab':
                 # GitLab releases API
                 project_id = self.repo_data.get('project_id')
                 if project_id:
                     url = f"https://gitlab.com/api/v4/projects/{project_id}/releases"
-                    response = requests.get(url, timeout=10)
+                    headers = {}
+                    if self.api_token:
+                        headers['PRIVATE-TOKEN'] = self.api_token
+                    response = requests.get(url, headers=headers, timeout=10)
                     if response.status_code == 200:
                         api_releases = response.json()
                         for release in api_releases:
@@ -402,10 +503,13 @@ class GitArchiver:
                             
                             releases.append(release_data)
             
-            elif domain in ['codeberg.org', 'gitea.com']:
+            elif domain in ['codeberg.org', 'gitea.com'] or self.repo_data['git_site'] in ['codeberg', 'gitea']:
                 # Gitea/Forgejo releases API
                 url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases"
-                response = requests.get(url, timeout=10)
+                headers = {}
+                if self.api_token:
+                    headers['Authorization'] = f'token {self.api_token}'
+                response = requests.get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
                     api_releases = response.json()
                     for release in api_releases:
@@ -768,8 +872,14 @@ class GitArchiver:
         skipped_empty_files = []
         
         for root, dirs, files in os.walk(repo_path):
-            # Skip .git directory
-            if '.git' in root:
+            # Only skip the .git directory itself, not .github or similar folders
+            # Check if the current directory is exactly .git
+            dir_name = os.path.basename(root)
+            if dir_name == '.git':
+                continue
+            
+            # Also skip if any parent directory is .git
+            if os.sep + '.git' + os.sep in root or root.endswith(os.sep + '.git'):
                 continue
             
             for file in files:
@@ -1232,6 +1342,10 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --bundle-only https://github.com/user/repo
+  
+  # Self-hosted instances
+  %(prog)s --git-provider-type gitlab --api-url https://gitlab.company.com/api/v4 https://gitlab.company.com/user/repo
+  %(prog)s --git-provider-type gitea --api-token TOKEN https://git.company.com/user/repo
         """
     )
     
@@ -1253,6 +1367,13 @@ Examples:
                        help='Clone and archive all branches')
     parser.add_argument('--branch', type=str,
                        help='Clone and archive a specific branch')
+    parser.add_argument('--git-provider-type', type=str, 
+                       choices=['github', 'gitlab', 'gitea', 'bitbucket'],
+                       help='Specify the git provider type for self-hosted instances')
+    parser.add_argument('--api-url', type=str,
+                       help='Custom API URL for self-hosted instances')
+    parser.add_argument('--api-token', type=str,
+                       help='API token for authentication with private/self-hosted repositories')
     parser.add_argument('--version', '-v', 
                        action='version', 
                        version=f'%(prog)s {__version__}')
@@ -1265,7 +1386,12 @@ Examples:
         sys.exit(1)
     
     # Create archiver instance and run
-    archiver = GitArchiver(verbose=not args.quiet)
+    archiver = GitArchiver(
+        verbose=not args.quiet,
+        git_provider_type=args.git_provider_type,
+        api_url=args.api_url,
+        api_token=args.api_token
+    )
     try:
         identifier, metadata = archiver.run(
             args.repo_url, 

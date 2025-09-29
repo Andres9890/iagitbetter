@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iagitbetter"
-version = "1.0.4"
+version = "1.0.5"
 description = "Archiving any git repository to the Internet Archive"
 readme = "README.md"
 authors = [
@@ -12,7 +12,7 @@ authors = [
 ]
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
-keywords = ["git", "archive", "internet-archive", "github", "gitlab", "bitbucket", "repository", "backup"]
+keywords = ["git", "archive", "internet-archive", "github", "gitlab", "bitbucket", "repository", "self-hosted", "gitea", "forgejo"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Version Control :: Git",
     "Topic :: System :: Archiving"
 ]
@@ -42,6 +43,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/Andres9890/iagitbetter"
+Documentation = "https://github.com/Andres9890/iagitbetter/blob/main/README.md"
+"Bug Tracker" = "https://github.com/Andres9890/iagitbetter/issues"
+"Source Code" = "https://github.com/Andres9890/iagitbetter"
 
 [project.scripts]
 iagitbetter = "iagitbetter:main"
