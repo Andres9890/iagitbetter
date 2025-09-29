@@ -611,7 +611,7 @@ class GitArchiver:
                 try:
                     self._download_file(
                         release['zipball_url'], 
-                        os.path.join(release_dir, f"{tag_name}-source.zip")
+                        os.path.join(release_dir, f"{tag_name}.source.zip")
                     )
                 except Exception as e:
                     if self.verbose:
@@ -621,7 +621,7 @@ class GitArchiver:
                 try:
                     self._download_file(
                         release['tarball_url'], 
-                        os.path.join(release_dir, f"{tag_name}-source.tar.gz")
+                        os.path.join(release_dir, f"{tag_name}.source.tar.gz")
                     )
                 except Exception as e:
                     if self.verbose:
