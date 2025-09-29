@@ -1039,6 +1039,10 @@ class GitArchiver:
         if self.repo_data.get('language'):
             subject_tags.append(self.repo_data['language'].lower())
         
+        # Add topics into the subject tags
+        if self.repo_data.get('topics'):
+            subject_tags.extend(self.repo_data['topics'])
+        
         # Prepare metadata - use first commit date for date field
         metadata = {
             'title': item_name,
@@ -1084,8 +1088,6 @@ class GitArchiver:
             metadata['stars'] = str(self.repo_data['stars'])
         if self.repo_data.get('forks') is not None:
             metadata['forks'] = str(self.repo_data['forks'])
-        if self.repo_data.get('topics'):
-            metadata['topics'] = ';'.join(self.repo_data['topics'])
         if self.repo_data.get('license'):
             metadata['license'] = self.repo_data['license']
         if self.repo_data.get('homepage'):
