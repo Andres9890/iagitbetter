@@ -85,7 +85,7 @@ iagitbetter <git_url> [options]
 
 ## Supported Git Providers
 
-See [SUPPORTED_PROVIDERS.md](SUPPORTED_PROVIDERS.md) for detailed information about each provider.
+See [`SUPPORTED_PROVIDERS.md`](SUPPORTED_PROVIDERS.md) for detailed information about each provider
 
 ### Automatic Metadata Collection
 
