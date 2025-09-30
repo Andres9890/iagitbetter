@@ -1,6 +1,6 @@
 # Supported Git Providers
 
-iagitbetter supports a wide range of git providers, public services and self-hosted ones
+iagitbetter supports a wide range of git providers, public and self-hosted ones,
 This file provides detailed information about each supported provider
 
 ## Provider Support Levels
