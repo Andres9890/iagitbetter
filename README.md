@@ -67,6 +67,7 @@ iagitbetter <git_url> [options]
 - `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
 - `--no-update-check` – skip checking for updates on PyPI
+- `--no-repo-info` - skip creating the repository info file
 
 ### Release Options
 
