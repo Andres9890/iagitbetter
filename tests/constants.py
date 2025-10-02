@@ -6,7 +6,7 @@ github_api_response = {
         "login": "testuser",
         "id": 12345,
         "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
-        "type": "User"
+        "type": "User",
     },
     "private": False,
     "html_url": "https://github.com/testuser/testrepo",
@@ -34,12 +34,7 @@ github_api_response = {
     "archived": False,
     "disabled": False,
     "open_issues_count": 3,
-    "license": {
-        "key": "mit",
-        "name": "MIT License",
-        "spdx_id": "MIT",
-        "url": "https://api.github.com/licenses/mit"
-    },
+    "license": {"key": "mit", "name": "MIT License", "spdx_id": "MIT", "url": "https://api.github.com/licenses/mit"},
     "topics": ["archiving", "git", "python"],
     "forks": 10,
     "open_issues": 3,
@@ -47,7 +42,7 @@ github_api_response = {
     "default_branch": "main",
     "network_count": 10,
     "subscribers_count": 5,
-    "visibility": "public"
+    "visibility": "public",
 }
 
 gitlab_api_response = {
@@ -60,18 +55,14 @@ gitlab_api_response = {
     "created_at": "2021-01-01T00:00:00.000Z",
     "last_activity_at": "2021-06-01T12:00:00.000Z",
     "visibility": "public",
-    "owner": {
-        "id": 1,
-        "name": "Test Group",
-        "username": "testgroup"
-    },
+    "owner": {"id": 1, "name": "Test Group", "username": "testgroup"},
     "namespace": {
         "id": 1,
         "name": "Test Group",
         "path": "testgroup",
         "kind": "group",
         "full_path": "testgroup",
-        "avatar_url": "https://gitlab.com/uploads/-/system/group/avatar/1/logo.png"
+        "avatar_url": "https://gitlab.com/uploads/-/system/group/avatar/1/logo.png",
     },
     "star_count": 15,
     "forks_count": 5,
@@ -92,7 +83,7 @@ gitlab_api_response = {
     "ci_enabled": True,
     "pages_enabled": False,
     "forked_from_project": None,
-    "visibility": "public"
+    "visibility": "public",
 }
 
 gitea_api_response = {
@@ -102,7 +93,7 @@ gitea_api_response = {
         "login": "testorg",
         "full_name": "Test Organization",
         "email": "",
-        "avatar_url": "https://gitea.com/avatars/1"
+        "avatar_url": "https://gitea.com/avatars/1",
     },
     "name": "testrepo",
     "full_name": "testorg/testrepo",
@@ -131,16 +122,12 @@ gitea_api_response = {
     "archived": False,
     "created_at": "2021-01-01T00:00:00Z",
     "updated_at": "2021-06-01T12:00:00Z",
-    "permissions": {
-        "admin": False,
-        "push": False,
-        "pull": True
-    },
+    "permissions": {"admin": False, "push": False, "pull": True},
     "has_issues": True,
     "internal_tracker": {
         "enable_time_tracker": True,
         "allow_only_contributors_to_track_time": True,
-        "enable_issue_dependencies": True
+        "enable_issue_dependencies": True,
     },
     "has_wiki": True,
     "has_pull_requests": True,
@@ -151,7 +138,7 @@ gitea_api_response = {
     "allow_rebase_explicit": True,
     "allow_squash_merge": True,
     "default_merge_style": "merge",
-    "avatar_url": ""
+    "avatar_url": "",
 }
 
 bitbucket_api_response = {
@@ -160,40 +147,18 @@ bitbucket_api_response = {
     "has_wiki": True,
     "name": "testrepo",
     "links": {
-        "watchers": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/watchers"
-        },
-        "branches": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/branches"
-        },
-        "tags": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/tags"
-        },
-        "commits": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/commits"
-        },
+        "watchers": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/watchers"},
+        "branches": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/branches"},
+        "tags": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/tags"},
+        "commits": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/commits"},
         "clone": [
-            {
-                "name": "https",
-                "href": "https://bitbucket.org/testuser/testrepo.git"
-            },
-            {
-                "name": "ssh",
-                "href": "git@bitbucket.org:testuser/testrepo.git"
-            }
+            {"name": "https", "href": "https://bitbucket.org/testuser/testrepo.git"},
+            {"name": "ssh", "href": "git@bitbucket.org:testuser/testrepo.git"},
         ],
-        "self": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo"
-        },
-        "source": {
-            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/src"
-        },
-        "html": {
-            "href": "https://bitbucket.org/testuser/testrepo"
-        },
-        "avatar": {
-            "href": "https://bitbucket.org/testuser/testrepo/avatar/32/"
-        }
+        "self": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo"},
+        "source": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/src"},
+        "html": {"href": "https://bitbucket.org/testuser/testrepo"},
+        "avatar": {"href": "https://bitbucket.org/testuser/testrepo/avatar/32/"},
     },
     "fork_policy": "allow_forks",
     "full_name": "testuser/testrepo",
@@ -201,35 +166,23 @@ bitbucket_api_response = {
         "display_name": "Test User",
         "uuid": "{12345678-1234-1234-1234-123456789012}",
         "links": {
-            "self": {
-                "href": "https://api.bitbucket.org/2.0/users/testuser"
-            },
-            "html": {
-                "href": "https://bitbucket.org/testuser/"
-            },
-            "avatar": {
-                "href": "https://secure.gravatar.com/avatar/12345?d=https%3A%2F%2Favatar.png"
-            }
+            "self": {"href": "https://api.bitbucket.org/2.0/users/testuser"},
+            "html": {"href": "https://bitbucket.org/testuser/"},
+            "avatar": {"href": "https://secure.gravatar.com/avatar/12345?d=https%3A%2F%2Favatar.png"},
         },
         "type": "user",
-        "username": "testuser"
+        "username": "testuser",
     },
     "workspace": {
         "slug": "testuser",
         "type": "workspace",
         "name": "Test User",
         "links": {
-            "self": {
-                "href": "https://api.bitbucket.org/2.0/workspaces/testuser"
-            },
-            "html": {
-                "href": "https://bitbucket.org/testuser/"
-            },
-            "avatar": {
-                "href": "https://bitbucket.org/workspaces/testuser/avatar/?ts=1234567890"
-            }
+            "self": {"href": "https://api.bitbucket.org/2.0/workspaces/testuser"},
+            "html": {"href": "https://bitbucket.org/testuser/"},
+            "avatar": {"href": "https://bitbucket.org/workspaces/testuser/avatar/?ts=1234567890"},
         },
-        "uuid": "{12345678-1234-1234-1234-123456789012}"
+        "uuid": "{12345678-1234-1234-1234-123456789012}",
     },
     "has_issues": True,
     "size": 2048000,
@@ -239,27 +192,18 @@ bitbucket_api_response = {
     "description": "Bitbucket test repository",
     "created_on": "2021-01-01T00:00:00.000000+00:00",
     "updated_on": "2021-06-01T12:00:00.000000+00:00",
-    "mainbranch": {
-        "type": "branch",
-        "name": "main"
-    },
+    "mainbranch": {"type": "branch", "name": "main"},
     "project": {
         "type": "project",
         "key": "TEST",
         "uuid": "{87654321-4321-4321-4321-210987654321}",
         "name": "Test Project",
         "links": {
-            "self": {
-                "href": "https://api.bitbucket.org/2.0/workspaces/testuser/projects/TEST"
-            },
-            "html": {
-                "href": "https://bitbucket.org/testuser/workspace/projects/TEST"
-            },
-            "avatar": {
-                "href": "https://bitbucket.org/account/user/testuser/projects/TEST/avatar/32"
-            }
-        }
+            "self": {"href": "https://api.bitbucket.org/2.0/workspaces/testuser/projects/TEST"},
+            "html": {"href": "https://bitbucket.org/testuser/workspace/projects/TEST"},
+            "avatar": {"href": "https://bitbucket.org/account/user/testuser/projects/TEST/avatar/32"},
+        },
     },
     "language": "python",
-    "uuid": "{98765432-5678-5678-5678-567890123456}"
+    "uuid": "{98765432-5678-5678-5678-567890123456}",
 }

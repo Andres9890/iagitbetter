@@ -10,4 +10,4 @@ __license__ = "GPL-3.0"
 from .iagitbetter import GitArchiver, get_latest_pypi_version, check_for_updates
 from .__main__ import main
 
-__all__ = ['GitArchiver', 'main', 'get_latest_pypi_version', 'check_for_updates']
+__all__ = ["GitArchiver", "main", "get_latest_pypi_version", "check_for_updates"]

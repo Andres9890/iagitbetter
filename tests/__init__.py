@@ -13,5 +13,5 @@ except ModuleNotFoundError:
     # Fallback to the vendored stub package shipped with the repository.
     from importlib import import_module
 
-    module = import_module('requests_mock')
-    sys.modules.setdefault('requests_mock', module)
+    module = import_module("requests_mock")
+    sys.modules.setdefault("requests_mock", module)

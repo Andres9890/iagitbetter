@@ -5,6 +5,7 @@ environment, so we provide a tiny subset that mimics the API surface consumed
 by the tests.  The stub supports registering responses for different HTTP
 methods and transparently intercepts calls made through ``requests``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -38,6 +39,7 @@ class _MockResponse:
                 self.text = self.content.decode("utf-8")
             except Exception:
                 self.text = ""
+
         # Provide a minimal file-like interface similar to ``requests.Response.raw``
         class _RawStream(BytesIO):
             def __init__(self, data: bytes) -> None:
