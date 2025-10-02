@@ -1082,8 +1082,6 @@ class GitArchiver:
         if includes_releases and not bundle_only:
             metadata['includesreleases'] = 'true'
             metadata['releasecount'] = str(self.repo_data.get('downloaded_releases', 0))
-            if self.repo_data.get('releases_dir_name'):
-                metadata['releasesdirname'] = self.repo_data['releases_dir_name']
         else:
             metadata['includesreleases'] = 'false'
         
