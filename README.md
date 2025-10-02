@@ -7,6 +7,8 @@
 # iagitbetter
 [![License Button]][License Link]
 [![PyPI Button]][PyPI Link]
+[![Lint](https://github.com/Andres9890/iagitbetter/actions/workflows/lint.yml/badge.svg)](https://github.com/Andres9890/iagitbetter/actions/workflows/lint.yml)
+[![Unit Tests](https://github.com/Andres9890/iagitbetter/actions/workflows/unit-test.yml/badge.svg)](https://github.com/Andres9890/iagitbetter/actions/workflows/unit-test.yml)
 
 iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
 
