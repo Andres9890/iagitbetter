@@ -7,6 +7,10 @@ on:
         description: 'Git URL to archive'
         required: true
         default: 'https://github.com/'
+      args:
+        description: 'Command arguments for iagitbetter'
+        required: false
+        default: '--all-branches --releases --all-releases'
 
 jobs:
   archive:
@@ -44,4 +48,4 @@ jobs:
 
     - name: Run iagitbetter
       run: |
-        iagitbetter --all-branches --releases --all-releases "${{ github.event.inputs.url }}"
+        iagitbetter ${{ github.event.inputs.args }} "${{ github.event.inputs.url }}"
