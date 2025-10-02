@@ -90,10 +90,13 @@ def check_for_updates(current_version, verbose=True):
         pass
 
 # Configure argparser
-parser = argparse.ArgumentParser(
-    description=PROGRAM_DESCRIPTION,
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog="""
+def build_argument_parser():
+    """Create the argument parser used by the CLI entrypoint."""
+
+    parser = argparse.ArgumentParser(
+        description=PROGRAM_DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
 Examples:
   # Public repositories
   %(prog)s https://github.com/user/repo
@@ -106,7 +109,7 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --all-branches --releases --all-releases https://github.com/user/repo
-  
+
   # Self-hosted repositories
   %(prog)s --git-provider-type gitlab --api-url https://gitlab.example.com/api/v4 https://git.example.com/user/repo
   %(prog)s --git-provider-type gitea --api-token example https://git.example.com/user/repo
@@ -127,49 +130,62 @@ Key improvements over iagitup:
   - Supports archiving all branches of a repository
   - API token authentication for private repositories
     """
-)
+    )
 
-parser.add_argument('giturl', type=str, 
-                   help='Git repository URL to archive (works with any git provider)')
-parser.add_argument('--metadata', '-m', default=None, type=str, required=False, 
-                   help="custom metadata to add to the archive.org item (format: key1:value1,key2:value2)")
-parser.add_argument('--quiet', '-q', action='store_true',
-                   help='Suppress verbose output (only show errors and final results)')
-parser.add_argument('--version', '-v', action='version', version=__version__)
-parser.add_argument('--bundle-only', action='store_true', 
-                   help="only upload git bundle, not all files (iagitup compatibility mode)")
-parser.add_argument('--no-update-check', action='store_true',
-                   help='Skip checking for updates on PyPI')
+    parser.add_argument('giturl', type=str,
+                       help='Git repository URL to archive (works with any git provider)')
+    parser.add_argument('--metadata', '-m', default=None, type=str, required=False,
+                       help="custom metadata to add to the archive.org item (format: key1:value1,key2:value2)")
+    parser.add_argument('--quiet', '-q', action='store_true',
+                       help='Suppress verbose output (only show errors and final results)')
+    parser.add_argument('--version', '-v', action='version', version=__version__)
+    parser.add_argument('--bundle-only', action='store_true',
+                       help="only upload git bundle, not all files (iagitup compatibility mode)")
+    parser.add_argument('--no-update-check', action='store_true',
+                       help='Skip checking for updates on PyPI')
 
-release_group = parser.add_argument_group('release options', 'Download releases from supported git providers')
-release_group.add_argument('--releases', action='store_true',
-                          help='Download releases from the repository (GitHub, GitLab, etc)')
-release_group.add_argument('--all-releases', action='store_true',
-                          help='Download all releases')
-release_group.add_argument('--latest-release', action='store_true',
-                          help='Download only the latest release (default when used)')
+    release_group = parser.add_argument_group('release options', 'Download releases from supported git providers')
+    release_group.add_argument('--releases', action='store_true',
+                              help='Download releases from the repository (GitHub, GitLab, etc)')
+    release_group.add_argument('--all-releases', action='store_true',
+                              help='Download all releases')
+    release_group.add_argument('--latest-release', action='store_true',
+                              help='Download only the latest release (default when used)')
 
-branch_group = parser.add_argument_group('branch options', 'Archive multiple branches')
-branch_group.add_argument('--all-branches', action='store_true',
-                         help='Clone and archive all branches of the repository')
-branch_group.add_argument('--branch', type=str,
-                         help='Clone and archive a specific branch of the repository')
+    branch_group = parser.add_argument_group('branch options', 'Archive multiple branches')
+    branch_group.add_argument('--all-branches', action='store_true',
+                             help='Clone and archive all branches of the repository')
+    branch_group.add_argument('--branch', type=str,
+                             help='Clone and archive a specific branch of the repository')
 
-selfhosted_group = parser.add_argument_group('self-hosted instance options', 
-                                              'Options for self-hosted git instances')
-selfhosted_group.add_argument('--git-provider-type', type=str, 
-                              choices=['github', 'gitlab', 'gitea', 'bitbucket'],
-                              help='Specify the git provider type for self-hosted instances')
-selfhosted_group.add_argument('--api-url', type=str,
-                              help='Custom API URL for self-hosted instances (e.g., https://git.example.com/api/v1)')
-selfhosted_group.add_argument('--api-token', type=str,
-                              help='API token for authentication with private/self-hosted repositories')
+    selfhosted_group = parser.add_argument_group('self-hosted instance options',
+                                                  'Options for self-hosted git instances')
+    selfhosted_group.add_argument('--git-provider-type', type=str,
+                                  choices=['github', 'gitlab', 'gitea', 'bitbucket'],
+                                  help='Specify the git provider type for self-hosted instances')
+    selfhosted_group.add_argument('--api-url', type=str,
+                                  help='Custom API URL for self-hosted instances (e.g., https://git.example.com/api/v1)')
+    selfhosted_group.add_argument('--api-token', type=str,
+                                  help='API token for authentication with private/self-hosted repositories')
 
-args = parser.parse_args()
+    return parser
 
-def main():
+
+def parse_args(argv=None):
+    """Parse command line arguments.
+
+    Exposed as a helper to make testing the CLI easier while avoiding side
+    effects when the module is imported.
+    """
+
+    parser = build_argument_parser()
+    return parser.parse_args(argv)
+
+def main(argv=None):
     """Main entry point for iagitbetter"""
-    
+
+    args = parse_args(argv)
+
     # Validate argument combinations
     if args.all_releases and args.latest_release:
         print("Error: Cannot specify both --all-releases and --latest-release")

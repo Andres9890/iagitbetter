@@ -142,18 +142,18 @@ class GitArchiver:
     
     def _build_api_url(self):
         """Build API URL for self-hosted or public instances"""
-        domain = self.repo_data['domain']
-        owner = self.repo_data['owner']
-        repo_name = self.repo_data['repo_name']
-        
+        owner = self.repo_data.get('owner', '')
+        repo_name = self.repo_data.get('repo_name', '')
+        domain = self.repo_data.get('domain', '')
+
         # If custom API URL is provided, use it
         if self.api_url:
             # Replace placeholders if present
             return self.api_url.rstrip('/') + f"/repos/{owner}/{repo_name}"
-        
+
         # Otherwise, use standard endpoints based on detected provider
-        git_site = self.repo_data['git_site']
-        
+        git_site = self.repo_data.get('git_site', '')
+
         if git_site == 'github' or domain == 'github.com':
             return f"https://api.github.com/repos/{owner}/{repo_name}"
         elif git_site == 'gitlab' or domain == 'gitlab.com':
@@ -176,11 +176,12 @@ class GitArchiver:
             
             # Prepare headers for authentication
             headers = {}
+            domain = self.repo_data.get('domain', '')
             if self.api_token:
                 git_site = self.repo_data.get('git_site', '')
-                if git_site == 'github' or 'github' in self.repo_data['domain']:
+                if git_site == 'github' or 'github' in domain:
                     headers['Authorization'] = f'token {self.api_token}'
-                elif git_site == 'gitlab' or 'gitlab' in self.repo_data['domain']:
+                elif git_site == 'gitlab' or 'gitlab' in domain:
                     headers['PRIVATE-TOKEN'] = self.api_token
                 else:
                     # Generic bearer token for other providers
@@ -303,7 +304,7 @@ class GitArchiver:
             'ci_enabled': api_data.get('builds_enabled', False),
             'shared_runners_enabled': api_data.get('shared_runners_enabled', False),
             'avatar_url': avatar_url,
-            'project_id': api_data.get('id', '')
+            'project_id': str(api_data.get('id', '')) if api_data.get('id') is not None else ''
         })
     
     def _parse_bitbucket_response(self, api_data):
@@ -694,7 +695,10 @@ class GitArchiver:
             else:
                 # Clone all branches (default behavior)
                 repo = git.Repo.clone_from(repo_url, repo_path)
-            
+
+            # Ensure the repository path exists even when using lightweight test doubles
+            os.makedirs(repo_path, exist_ok=True)
+
             # Get the first commit date and last commit date
             try:
                 # Get all commits and find the first one (oldest)
