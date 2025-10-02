@@ -30,18 +30,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git
 
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install git
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          git --version || echo "Git may need manual installation"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('test-requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -e .
           pip install -r test-requirements.txt
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ -v --cov=iagitbetter --cov-report=xml --cov-report=html
+          pytest tests/ -v --cov=iagitbetter --cov-report=xml --cov-report=html --cov-report=term
 
       - name: Upload coverage reports
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
