@@ -12,7 +12,7 @@
 
 iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
 
-- This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them
+- This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them (also credits to [tubeup](https://github.com/bibanon/tubeup) by bibanon for taking some stuff and modifying them)
 
 ## Features
 
@@ -328,7 +328,7 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 ### Archive Format
 - Identifier: `{owner}-{repo}-{timestamp}`
 - Title: `{owner} - {repo}`
-- Date: First commit date (for historical accuracy)
+- Date: First commit date
 - Files: Complete repository structure, branches (if requested), releases (if requested), and git bundle
 
 ## Repository Restoration

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iagitbetter"
-version = "1.0.5"
+version = "1.0.6"
 description = "Archiving any git repository to the Internet Archive"
 readme = "README.md"
 authors = [

@@ -5,7 +5,7 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
@@ -426,6 +426,34 @@ class GitArchiver:
                 print(f"   Could not download avatar: {e}")
             return None
     
+    def create_repo_info_file(self, repo_path):
+        """Create a file with all repository information"""
+        info_filename = f"{self.repo_data['repo_name']}.info.json"
+        info_path = os.path.join(repo_path, info_filename)
+        
+        # Prepare repo info
+        repo_info = {}
+        for key, value in self.repo_data.items():
+            if isinstance(value, datetime):
+                repo_info[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+            elif isinstance(value, (list, dict, str, int, float, bool)) or value is None:
+                repo_info[key] = value
+            else:
+                repo_info[key] = str(value)
+        
+        # Add archive metadata
+        repo_info['archived_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        repo_info['archiver_version'] = __version__
+        
+        # Write to file
+        with open(info_path, 'w', encoding='utf-8') as f:
+            json.dump(repo_info, f, indent=2, ensure_ascii=False)
+        
+        if self.verbose:
+            print(f"   Created repository info file: {info_filename}")
+        
+        return info_path
+    
     def fetch_releases(self):
         """Fetch releases from the git provider API"""
         domain = self.repo_data['domain']
@@ -815,7 +843,8 @@ class GitArchiver:
                     for item in os.listdir(repo_path):
                         if (item == '.git' or 
                             item == branches_dir_name or 
-                            item.endswith('_releases')):
+                            item.endswith('_releases') or
+                            item.endswith('.info.json')):
                             continue
                         
                         src_path = os.path.join(repo_path, item)
@@ -959,7 +988,8 @@ class GitArchiver:
         return "This git repository doesn't have a README.md file"
     
     def upload_to_ia(self, repo_path, custom_metadata=None, includes_releases=False, 
-                     includes_all_branches=False, specific_branch=None, bundle_only=False):
+                     includes_all_branches=False, specific_branch=None, bundle_only=False,
+                     create_repo_info=True):
         """Upload the repository to the Internet Archive"""
         # Generate timestamps - use current time for archival date and identifier
         archive_date = datetime.now()
@@ -1129,12 +1159,23 @@ class GitArchiver:
             bundle_path = self.create_git_bundle(repo_path)
             bundle_filename = os.path.basename(bundle_path) if bundle_path else None
             
+            # Create repository info file
+            info_path = None
+            info_filename = None
+            if create_repo_info:
+                info_path = self.create_repo_info_file(repo_path)
+                info_filename = os.path.basename(info_path) if info_path else None
+            
             # Prepare files for upload - use dictionary format for proper naming
             files_to_upload = {}
             
             # Add bundle file first
             if bundle_path and os.path.exists(bundle_path):
                 files_to_upload[bundle_filename] = bundle_path
+            
+            # Add repo info file
+            if info_path and os.path.exists(info_path):
+                files_to_upload[info_filename] = info_path
             
             # Always check for and include avatar file
             username = self.repo_data['owner']
@@ -1166,6 +1207,8 @@ class GitArchiver:
                 components = []
                 if bundle_filename:
                     components.append("Git bundle")
+                if info_filename:
+                    components.append("Repository info file")
                 
                 # Check if avatar is included
                 avatar_included = any(f.startswith(username) and f.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')) 
@@ -1286,7 +1329,7 @@ class GitArchiver:
     
     def run(self, repo_url, custom_metadata_string=None, verbose=True, check_updates=True, 
            all_branches=False, specific_branch=None, releases=False, all_releases=False, 
-           bundle_only=False):
+           bundle_only=False, create_repo_info=True):
         """Main execution flow."""
         self.verbose = verbose
         
@@ -1322,7 +1365,8 @@ class GitArchiver:
             includes_releases=releases and not bundle_only,
             includes_all_branches=all_branches,
             specific_branch=specific_branch,
-            bundle_only=bundle_only
+            bundle_only=bundle_only,
+            create_repo_info=create_repo_info
         )
         
         # Cleanup
@@ -1346,6 +1390,7 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --bundle-only https://github.com/user/repo
+  %(prog)s --no-repo-info https://github.com/user/repo
   
   # Self-hosted instances
   %(prog)s --git-provider-type gitlab --api-url https://gitlab.company.com/api/v4 https://gitlab.company.com/user/repo
@@ -1363,6 +1408,8 @@ Examples:
                        help='Skip checking for updates on PyPI')
     parser.add_argument('--bundle-only', action='store_true',
                        help='Only uploads the git bundle, not all files')
+    parser.add_argument('--no-repo-info', action='store_true',
+                       help='Skip creating the repository info JSON file')
     parser.add_argument('--releases', action='store_true',
                        help='Download releases from the repository')
     parser.add_argument('--all-releases', action='store_true',
@@ -1406,7 +1453,8 @@ Examples:
             specific_branch=args.branch,
             releases=args.releases,
             all_releases=args.all_releases,
-            bundle_only=args.bundle_only
+            bundle_only=args.bundle_only,
+            create_repo_info=not args.no_repo_info
         )
         if identifier:
             print("\n" + "="*60)

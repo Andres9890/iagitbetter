@@ -24,7 +24,7 @@ __copyright__  = "Copyright 2025, Andres99"
 __main_name__  = 'iagitbetter'
 __license__    = 'GPLv3'
 __status__     = "Production/Stable"
-__version__    = "v1.0.5"
+__version__    = "v1.0.6"
 
 import os
 import sys
@@ -109,6 +109,7 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --all-branches --releases --all-releases https://github.com/user/repo
+  %(prog)s --no-repo-info https://github.com/user/repo
 
   # Self-hosted repositories
   %(prog)s --git-provider-type gitlab --api-url https://gitlab.example.com/api/v4 https://git.example.com/user/repo
@@ -129,6 +130,7 @@ Key improvements over iagitup:
   - Downloads releases from supported git providers
   - Supports archiving all branches of a repository
   - API token authentication for private repositories
+  - Creates repository info JSON with all metadata
     """
     )
 
@@ -143,6 +145,8 @@ Key improvements over iagitup:
                        help="only upload git bundle, not all files (iagitup compatibility mode)")
     parser.add_argument('--no-update-check', action='store_true',
                        help='Skip checking for updates on PyPI')
+    parser.add_argument('--no-repo-info', action='store_true',
+                       help='Skip creating the repository info JSON file')
 
     release_group = parser.add_argument_group('release options', 'Download releases from supported git providers')
     release_group.add_argument('--releases', action='store_true',
@@ -263,6 +267,8 @@ def main(argv=None):
                         archive_components.append("All releases")
                     else:
                         archive_components.append("Latest release")
+            if not args.no_repo_info:
+                archive_components.append("Repository info file")
             print(f"   Will archive: {', '.join(archive_components)}")
             print()
         
@@ -288,7 +294,8 @@ def main(argv=None):
             includes_releases=args.releases and not args.bundle_only,
             includes_all_branches=args.all_branches,
             specific_branch=args.branch,
-            bundle_only=args.bundle_only
+            bundle_only=args.bundle_only,
+            create_repo_info=not args.no_repo_info
         )
         
         # Output results
@@ -346,6 +353,7 @@ def main(argv=None):
             print(f"Archived git bundle file:")
             bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
             print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
+
             print("=" * 60)
             print("Archive complete")
             print()
