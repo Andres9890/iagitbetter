@@ -1,0 +1,40 @@
+[
+    {
+      "tag_name": "v1.0.0",
+      "name": "Version 1.0.0",
+      "description": "First stable release",
+      "created_at": "2025-10-02T00:00:00.000Z",
+      "released_at": "2025-10-02T01:00:00.000Z",
+      "author": {
+        "id": 1,
+        "name": "Test User",
+        "username": "testuser"
+      },
+      "commit": {
+        "id": "abcdef1234567890",
+        "short_id": "abcdef12",
+        "title": "Release version 1.0.0"
+      },
+      "assets": {
+        "count": 2,
+        "sources": [
+          {
+            "format": "zip",
+            "url": "https://gitlab.com/testgroup/testproject/-/archive/v1.0.0/testproject-v1.0.0.zip"
+          },
+          {
+            "format": "tar.gz",
+            "url": "https://gitlab.com/testgroup/testproject/-/archive/v1.0.0/testproject-v1.0.0.tar.gz"
+          }
+        ],
+        "links": [
+          {
+            "id": 1,
+            "name": "Documentation",
+            "url": "https://docs.example.com/v1.0.0",
+            "link_type": "other"
+          }
+        ]
+      }
+    }
+  ]

@@ -779,7 +779,7 @@ class GitArchiver:
                 print(f"   Other branches will be organized in branches directory")
             
             # Create branches directory for non-default branches: {repo_name}-{owner}_branches
-            branches_dir_name = f"{self.repo_data['repo_name']}-{self.repo_data['owner']}_branches"
+            branches_dir_name = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_branches"
             branches_dir = os.path.join(repo_path, branches_dir_name)
             
             # Only create if there are other branches
