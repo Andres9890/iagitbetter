@@ -5,29 +5,28 @@ iagitbetter - Archive any git repository to the Internet Archive
 Improved version with support for all git providers and full file preservation
 """
 
-__version__ = "1.0.6"
+from . import __version__
+
 __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
-import os
-import sys
-import shutil
 import argparse
 import json
-import tempfile
+import os
 import re
-import subprocess
+import shutil
 import stat
+import subprocess
+import sys
+import tempfile
 import urllib.request
-import zipfile
-import tarfile
 from datetime import datetime
 from urllib.parse import urlparse
-from pathlib import Path
-import requests
-import internetarchive
-from internetarchive.config import parse_config_file
+
 import git
+import internetarchive
+import requests
+from internetarchive.config import parse_config_file
 from markdown2 import markdown_path
 
 
@@ -69,7 +68,7 @@ def check_for_updates(current_version, verbose=True):
 
             if latest_parts > current_parts:
                 print(f"Update available: {latest_version} (current is v{current_version})")
-                print(f"   upgrade with: pip install --upgrade iagitbetter")
+                print("   upgrade with: pip install --upgrade iagitbetter")
                 print()
     except Exception:
         # Silently ignore any errors in version checking
@@ -148,29 +147,33 @@ class GitArchiver:
         owner = self.repo_data.get("owner", "")
         repo_name = self.repo_data.get("repo_name", "")
         domain = self.repo_data.get("domain", "")
+        site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
 
-        # If custom API URL is provided, use it
+        # If custom API URL is provided, treat it as the base API URL for that provider
         if self.api_url:
-            # Replace placeholders if present
-            return self.api_url.rstrip("/") + f"/repos/{owner}/{repo_name}"
+            base = self.api_url.rstrip("/")
+            if site == "github":
+                return f"{base}/repos/{owner}/{repo_name}"
+            elif site == "gitlab":
+                # GitLab projects use URL-encoded path
+                return f"{base}/projects/{owner}%2F{repo_name}"
+            elif site in ("gitea", "codeberg") or "gitea" in domain:
+                return f"{base}/repos/{owner}/{repo_name}"
+            elif site == "bitbucket":
+                return f"{base}/repositories/{owner}/{repo_name}"
+            # Fallback: assume Gitea/Forgejo shape
+            return f"{base}/repos/{owner}/{repo_name}"
 
-        # Otherwise, use standard endpoints based on detected provider
-        git_site = self.repo_data.get("git_site", "")
-
-        if git_site == "github" or domain == "github.com":
+        # No custom api_url: use known public endpoints
+        if site == "github" or domain == "github.com":
             return f"https://api.github.com/repos/{owner}/{repo_name}"
-        elif git_site == "gitlab" or domain == "gitlab.com":
+        elif site == "gitlab" or domain == "gitlab.com":
             return f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}"
-        elif git_site == "bitbucket" or domain == "bitbucket.org":
+        elif site == "bitbucket" or domain == "bitbucket.org":
             return f"https://api.bitbucket.org/2.0/repositories/{owner}/{repo_name}"
-        elif git_site in ["codeberg", "gitea"] or "gitea" in domain or domain == "codeberg.org":
-            # For self-hosted Gitea/Forgejo instances
-            base_url = f"https://{domain}"
-            return f"{base_url}/api/v1/repos/{owner}/{repo_name}"
-        else:
-            # Try Gitea API format as fallback for unknown self-hosted instances
-            base_url = f"https://{domain}"
-            return f"{base_url}/api/v1/repos/{owner}/{repo_name}"
+        elif site in ["codeberg", "gitea"] or "gitea" in domain or domain == "codeberg.org":
+            return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
+        return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
 
     def _fetch_api_metadata(self):
         """Try to fetch metadata from various git provider APIs"""
@@ -179,15 +182,14 @@ class GitArchiver:
 
             # Prepare headers for authentication
             headers = {}
-            domain = self.repo_data.get("domain", "")
+            site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
             if self.api_token:
-                git_site = self.repo_data.get("git_site", "")
-                if git_site == "github" or "github" in domain:
+                if site == "github":
                     headers["Authorization"] = f"token {self.api_token}"
-                elif git_site == "gitlab" or "gitlab" in domain:
+                elif site == "gitlab":
                     headers["PRIVATE-TOKEN"] = self.api_token
                 else:
-                    # Generic bearer token for other providers
+                    # Gitea/Forgejo generally accept 'token', some accept Bearer too
                     headers["Authorization"] = f"token {self.api_token}"
 
             if self.verbose:
@@ -199,10 +201,10 @@ class GitArchiver:
                 self._parse_api_response(api_data)
             elif response.status_code == 404:
                 if self.verbose:
-                    print(f"   Note: Repository not found via API (may be private or API not available)")
+                    print("   Note: Repository not found via API (may be private or API not available)")
             elif response.status_code == 401:
                 if self.verbose:
-                    print(f"   Note: API authentication required. Use --api-token for private repositories")
+                    print("   Note: API authentication required. Use --api-token for private repositories")
             else:
                 if self.verbose:
                     print(f"   Note: Could not fetch API metadata (status {response.status_code})")
@@ -484,7 +486,7 @@ class GitArchiver:
                 # GitHub releases API
                 url = f"https://api.github.com/repos/{owner}/{repo_name}/releases"
                 headers = {}
-                if self.api_token and "github" in domain:
+                if self.api_token and (self.repo_data.get("git_site") == "github"):
                     headers["Authorization"] = f"token {self.api_token}"
                 response = requests.get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
@@ -517,10 +519,10 @@ class GitArchiver:
                         releases.append(release_data)
 
             elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
-                # GitLab releases API
+                # GitLab releases API (respect self-hosted domain)
                 project_id = self.repo_data.get("project_id")
                 if project_id:
-                    url = f"https://gitlab.com/api/v4/projects/{project_id}/releases"
+                    url = f"https://{domain}/api/v4/projects/{project_id}/releases"
                     headers = {}
                     if self.api_token:
                         headers["PRIVATE-TOKEN"] = self.api_token
@@ -536,13 +538,13 @@ class GitArchiver:
                                 "assets": [],
                             }
 
-                            # GitLab doesn't provide automatic source archives like GitHub
-                            # Add manual download links for source code
+                            # Use instance domain for source archives
+                            tag_name = release.get("tag_name")
                             release_data["zipball_url"] = (
-                                f"https://gitlab.com/{owner}/{repo_name}/-/archive/{release.get('tag_name')}/{repo_name}-{release.get('tag_name')}.zip"
+                                f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip"
                             )
                             release_data["tarball_url"] = (
-                                f"https://gitlab.com/{owner}/{repo_name}/-/archive/{release.get('tag_name')}/{repo_name}-{release.get('tag_name')}.tar.gz"
+                                f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz"
                             )
 
                             # Add release assets/links
@@ -596,7 +598,7 @@ class GitArchiver:
             if self.verbose and releases:
                 print(f"   Found {len(releases)} releases")
             elif self.verbose:
-                print(f"   No releases found for this repository")
+                print("   No releases found for this repository")
 
         except Exception as e:
             if self.verbose:
@@ -978,7 +980,7 @@ class GitArchiver:
                 try:
                     # Use markdown2 to convert to HTML like iagitup does
                     description = markdown_path(path)
-                    description = description.replace("\n", "")
+                    # Preserve line breaks for readability (do not flatten)
                     return description
                 except Exception as e:
                     if self.verbose:
@@ -1002,7 +1004,7 @@ class GitArchiver:
                         # Convert to basic HTML
                         description = f"<pre>{description}</pre>"
                         return description
-                except:
+                except Exception:
                     pass
 
         return "This git repository doesn't have a README.md file"
@@ -1057,6 +1059,7 @@ class GitArchiver:
                     archive_details.append(f"{release_count} release(s) with assets")
 
         # Build full description
+        bundle_filename = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
         description_footer = f"""<br/><hr/>
         <p><strong>Repository Information:</strong></p>
         <ul>
@@ -1070,9 +1073,9 @@ class GitArchiver:
             <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
         <p>To restore the repository, download the bundle:</p>
-        <pre><code>wget https://archive.org/download/{identifier}/{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle</code></pre>
+        <pre><code>wget https://archive.org/download/{identifier}/{bundle_filename}</code></pre>
         <p>And then run:</p>
-        <pre><code>git clone {self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle</code></pre>
+        <pre><code>git clone {bundle_filename}</code></pre>
         """
 
         # Add repo description if available from API
@@ -1230,7 +1233,7 @@ class GitArchiver:
 
             if self.verbose:
                 if bundle_only:
-                    print(f"Uploading git bundle only to Internet Archive")
+                    print("Uploading git bundle only to Internet Archive")
                 else:
                     print(f"Uploading {len(files_to_upload)} files to Internet Archive")
                 print("This may take some time depending on repository size and connection speed")
@@ -1300,7 +1303,7 @@ class GitArchiver:
                 upload_kwargs["access_key"] = access_key
                 upload_kwargs["secret_key"] = secret_key
 
-            response = item.upload(files_to_upload, **upload_kwargs)
+            item.upload(files_to_upload, **upload_kwargs)
 
             if self.verbose:
                 print(f"\nUpload completed successfully!")
@@ -1443,7 +1446,7 @@ Examples:
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --bundle-only https://github.com/user/repo
   %(prog)s --no-repo-info https://github.com/user/repo
-  
+
   # Self-hosted instances
   %(prog)s --git-provider-type gitlab --api-url https://gitlab.company.com/api/v4 https://gitlab.company.com/user/repo
   %(prog)s --git-provider-type gitea --api-token TOKEN https://git.company.com/user/repo

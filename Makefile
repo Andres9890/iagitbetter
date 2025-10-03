@@ -1,4 +1,4 @@
-VERSION=$(shell grep -m1 version setup.py | cut -d\' -f2)
+VERSION=$(shell python -c "from iagitbetter import __version__; print(__version__)")
 
 .PHONY: help binary clean-pyc clean lint format test install dev-install publish
 

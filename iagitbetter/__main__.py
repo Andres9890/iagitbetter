@@ -24,13 +24,15 @@ __copyright__ = "Copyright 2025, Andres99"
 __main_name__ = "iagitbetter"
 __license__ = "GPLv3"
 __status__ = "Production/Stable"
-__version__ = "v1.0.6"
+from . import __version_v__
 
-import os
-import sys
-import shutil
+__version__ = __version_v__
+
 import argparse
 import json
+
+# Remove unused imports: os, shutil
+import sys
 import urllib.request
 from datetime import datetime
 
@@ -85,7 +87,7 @@ def check_for_updates(current_version, verbose=True):
 
             if latest_parts > current_parts:
                 print(f"Update available: {latest_version} (current is {current_version})")
-                print(f"   Run: pip install --upgrade iagitbetter")
+                print("   Run: pip install --upgrade iagitbetter")
                 print()
     except Exception:
         # Silently ignore any errors in version checking
@@ -356,9 +358,9 @@ def main(argv=None):
                     else:
                         print(f"Releases: Latest release archived in {releases_dir}/")
 
-            print(f"Archived repository URL:")
+            print("Archived repository URL:")
             print(f"    https://archive.org/details/{identifier}")
-            print(f"Archived git bundle file:")
+            print("Archived git bundle file:")
             bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
             print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
 
