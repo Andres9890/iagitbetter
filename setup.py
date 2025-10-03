@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 import os
+import re
 
 from setuptools import find_packages, setup
-
-# Import version from __init__.py
-from iagitbetter import __version__
 
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
+def get_version():
+    init_path = os.path.join(os.path.dirname(__file__), "iagitbetter", "__init__.py")
+    with open(init_path, "r") as f:
+        content = f.read()
+    version_match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content, re.MULTILINE)
+    if version_match:
+        return version_match.group(1)
+    raise RuntimeError("Unable to find version string")
+
+
 setup(
     name="iagitbetter",
-    version=__version__,
+    version=get_version(),
     author="Andres99",
     description="Archiving any git repository to the Internet Archive",
     long_description=read("README.md"),
