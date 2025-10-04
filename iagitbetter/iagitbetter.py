@@ -1157,7 +1157,6 @@ class GitArchiver:
             "identifier": identifier,
             "scanner": f"iagitbetter Git Repository Mirroring Application {__version__}",
             "totalcommits": str(self.repo_data.get("total_commits", 0)),
-            "bundleonly": str(bundle_only),
         }
 
         # Add branch information
@@ -1168,9 +1167,10 @@ class GitArchiver:
                 metadata["branchlist"] = ";".join(self.repo_data["branches"])
         elif specific_branch:
             metadata["specificbranch"] = specific_branch
-            metadata["allbranches"] = "false"
-        else:
-            metadata["allbranches"] = "false"
+
+        # Only add bundleonly when it's actually bundle-only mode
+        if bundle_only:
+            metadata["bundleonly"] = "true"
 
         # Add release information
         if includes_releases and not bundle_only:
@@ -1194,8 +1194,9 @@ class GitArchiver:
             metadata["repoarchived"] = str(self.repo_data["archived"])
         if self.repo_data.get("fork"):
             metadata["isfork"] = str(self.repo_data["fork"])
-        if self.repo_data.get("private") is not None:
-            metadata["repoprivate"] = str(self.repo_data["private"])
+        # Only add repoprivate when the repo is actually private
+        if self.repo_data.get("private"):
+            metadata["repoprivate"] = "true"
 
         # Add any additional custom metadata
         if custom_metadata:
