@@ -1172,12 +1172,10 @@ class GitArchiver:
         if bundle_only:
             metadata["bundleonly"] = "true"
 
-        # Add release information
+        # Add release information - only when releases are actually included
         if includes_releases and not bundle_only:
             metadata["includesreleases"] = "true"
             metadata["releasecount"] = str(self.repo_data.get("downloaded_releases", 0))
-        else:
-            metadata["includesreleases"] = "false"
 
         # Add additional metadata from API if available
         if self.repo_data.get("stars") is not None:
