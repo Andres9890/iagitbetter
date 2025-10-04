@@ -1,15 +1,17 @@
-import unittest
+import json
 import os
 import shutil
-import json
 import tempfile
-import requests_mock
-from unittest.mock import patch, MagicMock, Mock
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
-from iagitbetter.iagitbetter import GitArchiver
+import requests_mock
+
 from iagitbetter import __version__
-from .constants import github_api_response, gitlab_api_response, gitea_api_response, bitbucket_api_response
+from iagitbetter.iagitbetter import GitArchiver
+
+from .constants import bitbucket_api_response, gitea_api_response, github_api_response, gitlab_api_response
 
 current_path = os.path.dirname(os.path.realpath(__file__))
 SCANNER = f"iagitbetter Git Repository Mirroring Application {__version__}"
@@ -105,7 +107,12 @@ class GitArchiverTests(unittest.TestCase):
     @requests_mock.Mocker()
     def test_fetch_api_metadata_github(self, m):
         """Test fetching metadata from GitHub API"""
-        self.archiver.repo_data = {"domain": "github.com", "git_site": "github", "owner": "testuser", "repo_name": "testrepo"}
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
 
         m.get("https://api.github.com/repos/testuser/testrepo", json=github_api_response)
 
@@ -224,7 +231,9 @@ This is a test repository for iagitbetter.
         }
 
         m.get(
-            "https://avatars.githubusercontent.com/u/12345", content=b"fake image data", headers={"content-type": "image/jpeg"}
+            "https://avatars.githubusercontent.com/u/12345",
+            content=b"fake image data",
+            headers={"content-type": "image/jpeg"},
         )
 
         avatar_filename = self.archiver.download_avatar(repo_path)
@@ -238,7 +247,12 @@ This is a test repository for iagitbetter.
     @requests_mock.Mocker()
     def test_fetch_releases_github(self, m):
         """Test fetching releases from GitHub"""
-        self.archiver.repo_data = {"domain": "github.com", "git_site": "github", "owner": "testuser", "repo_name": "testrepo"}
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
 
         releases_response = [
             {
