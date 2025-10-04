@@ -34,7 +34,12 @@ github_api_response = {
     "archived": False,
     "disabled": False,
     "open_issues_count": 3,
-    "license": {"key": "mit", "name": "MIT License", "spdx_id": "MIT", "url": "https://api.github.com/licenses/mit"},
+    "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+    },
     "topics": ["archiving", "git", "python"],
     "forks": 10,
     "open_issues": 3,

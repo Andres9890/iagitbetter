@@ -76,7 +76,14 @@ def check_for_updates(current_version, verbose=True):
 
 
 class GitArchiver:
-    def __init__(self, verbose=True, ia_config_path=None, git_provider_type=None, api_url=None, api_token=None):
+    def __init__(
+        self,
+        verbose=True,
+        ia_config_path=None,
+        git_provider_type=None,
+        api_url=None,
+        api_token=None,
+    ):
         self.temp_dir = None
         self.repo_data = {}
         self.verbose = verbose
@@ -247,7 +254,7 @@ class GitArchiver:
                 "open_issues": api_data.get("open_issues_count", 0),
                 "homepage": api_data.get("homepage", ""),
                 "topics": api_data.get("topics", []),
-                "license": api_data.get("license", {}).get("name", "") if api_data.get("license") else "",
+                "license": (api_data.get("license", {}).get("name", "") if api_data.get("license") else ""),
                 "default_branch": api_data.get("default_branch", "main"),
                 "has_wiki": api_data.get("has_wiki", False),
                 "has_pages": api_data.get("has_pages", False),
@@ -264,7 +271,7 @@ class GitArchiver:
                 "svn_url": api_data.get("svn_url", ""),
                 "mirror_url": api_data.get("mirror_url", ""),
                 "visibility": api_data.get("visibility", "public"),
-                "avatar_url": api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else "",
+                "avatar_url": (api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else ""),
             }
         )
 
@@ -312,7 +319,7 @@ class GitArchiver:
                 "ci_enabled": api_data.get("builds_enabled", False),
                 "shared_runners_enabled": api_data.get("shared_runners_enabled", False),
                 "avatar_url": avatar_url,
-                "project_id": str(api_data.get("id", "")) if api_data.get("id") is not None else "",
+                "project_id": (str(api_data.get("id", "")) if api_data.get("id") is not None else ""),
             }
         )
 
@@ -333,7 +340,7 @@ class GitArchiver:
                 "homepage": api_data.get("website", ""),
                 "scm": api_data.get("scm", "git"),
                 "mainbranch": api_data.get("mainbranch", {}).get("name", "main"),
-                "project": api_data.get("project", {}).get("name", "") if api_data.get("project") else "",
+                "project": (api_data.get("project", {}).get("name", "") if api_data.get("project") else ""),
                 "owner_type": api_data.get("owner", {}).get("type", ""),
                 "owner_display_name": api_data.get("owner", {}).get("display_name", ""),
                 "avatar_url": (
@@ -376,7 +383,7 @@ class GitArchiver:
                 "internal_tracker": api_data.get("internal_tracker", {}),
                 "external_tracker": api_data.get("external_tracker", {}),
                 "external_wiki": api_data.get("external_wiki", {}),
-                "avatar_url": api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else "",
+                "avatar_url": (api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else ""),
             }
         )
 
@@ -667,14 +674,20 @@ class GitArchiver:
             # Download source archives
             if release.get("zipball_url"):
                 try:
-                    self._download_file(release["zipball_url"], os.path.join(release_dir, f"{tag_name}.source.zip"))
+                    self._download_file(
+                        release["zipball_url"],
+                        os.path.join(release_dir, f"{tag_name}.source.zip"),
+                    )
                 except Exception as e:
                     if self.verbose:
                         print(f"     Could not download source zip: {e}")
 
             if release.get("tarball_url"):
                 try:
-                    self._download_file(release["tarball_url"], os.path.join(release_dir, f"{tag_name}.source.tar.gz"))
+                    self._download_file(
+                        release["tarball_url"],
+                        os.path.join(release_dir, f"{tag_name}.source.tar.gz"),
+                    )
                 except Exception as e:
                     if self.verbose:
                         print(f"     Could not download source tarball: {e}")
@@ -1472,11 +1485,27 @@ Examples:
     parser.add_argument("repo_url", help="Git repository URL to archive")
     parser.add_argument("--metadata", "-m", help="Custom metadata in format: key1:value1,key2:value2")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress verbose output")
-    parser.add_argument("--no-update-check", action="store_true", help="Skip checking for updates on PyPI")
-    parser.add_argument("--bundle-only", action="store_true", help="Only uploads the git bundle, not all files")
-    parser.add_argument("--no-repo-info", action="store_true", help="Skip creating the repository info JSON file")
+    parser.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="Skip checking for updates on PyPI",
+    )
+    parser.add_argument(
+        "--bundle-only",
+        action="store_true",
+        help="Only uploads the git bundle, not all files",
+    )
+    parser.add_argument(
+        "--no-repo-info",
+        action="store_true",
+        help="Skip creating the repository info JSON file",
+    )
     parser.add_argument("--releases", action="store_true", help="Download releases from the repository")
-    parser.add_argument("--all-releases", action="store_true", help="Download all releases (default: latest only)")
+    parser.add_argument(
+        "--all-releases",
+        action="store_true",
+        help="Download all releases (default: latest only)",
+    )
     parser.add_argument("--all-branches", action="store_true", help="Clone and archive all branches")
     parser.add_argument("--branch", type=str, help="Clone and archive a specific branch")
     parser.add_argument(
@@ -1486,7 +1515,11 @@ Examples:
         help="Specify the git provider type for self-hosted instances",
     )
     parser.add_argument("--api-url", type=str, help="Custom API URL for self-hosted instances")
-    parser.add_argument("--api-token", type=str, help="API token for authentication with private/self-hosted repositories")
+    parser.add_argument(
+        "--api-token",
+        type=str,
+        help="API token for authentication with private/self-hosted repositories",
+    )
     parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -1498,7 +1531,10 @@ Examples:
 
     # Create archiver instance and run
     archiver = GitArchiver(
-        verbose=not args.quiet, git_provider_type=args.git_provider_type, api_url=args.api_url, api_token=args.api_token
+        verbose=not args.quiet,
+        git_provider_type=args.git_provider_type,
+        api_url=args.api_url,
+        api_token=args.api_token,
     )
     try:
         identifier, metadata = archiver.run(

@@ -25,7 +25,11 @@ def mock_upload_response_by_identifier(m, identifier, files):
     """Mock internetarchive upload responses"""
     for filepath in files:
         filename = os.path.basename(filepath)
-        m.put(f"https://s3.us.archive.org/{identifier}/{filename}", content=b"", headers={"content-type": "text/plain"})
+        m.put(
+            f"https://s3.us.archive.org/{identifier}/{filename}",
+            content=b"",
+            headers={"content-type": "text/plain"},
+        )
 
 
 def copy_test_repository_to_temp():
@@ -132,7 +136,10 @@ class GitArchiverTests(unittest.TestCase):
             "repo_name": "testproject",
         }
 
-        m.get("https://gitlab.com/api/v4/projects/testgroup%2Ftestproject", json=gitlab_api_response)
+        m.get(
+            "https://gitlab.com/api/v4/projects/testgroup%2Ftestproject",
+            json=gitlab_api_response,
+        )
 
         self.archiver._fetch_api_metadata()
 
@@ -276,7 +283,10 @@ This is a test repository for iagitbetter.
             }
         ]
 
-        m.get("https://api.github.com/repos/testuser/testrepo/releases", json=releases_response)
+        m.get(
+            "https://api.github.com/repos/testuser/testrepo/releases",
+            json=releases_response,
+        )
 
         self.archiver.fetch_releases()
 

@@ -1,12 +1,12 @@
-import unittest
 import json
-import tempfile
 import os
+import tempfile
+import unittest
 from datetime import datetime
 from pathlib import Path
 
+from iagitbetter import check_for_updates, get_latest_pypi_version
 from iagitbetter.iagitbetter import GitArchiver
-from iagitbetter import get_latest_pypi_version, check_for_updates
 
 
 class UtilsTest(unittest.TestCase):

@@ -139,7 +139,11 @@ Key improvements over iagitup:
     """,
     )
 
-    parser.add_argument("giturl", type=str, help="Git repository URL to archive (works with any git provider)")
+    parser.add_argument(
+        "giturl",
+        type=str,
+        help="Git repository URL to archive (works with any git provider)",
+    )
     parser.add_argument(
         "--metadata",
         "-m",
@@ -149,27 +153,52 @@ Key improvements over iagitup:
         help="custom metadata to add to the archive.org item (format: key1:value1,key2:value2)",
     )
     parser.add_argument(
-        "--quiet", "-q", action="store_true", help="Suppress verbose output (only show errors and final results)"
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress verbose output (only show errors and final results)",
     )
     parser.add_argument("--version", "-v", action="version", version=__version__)
     parser.add_argument(
-        "--bundle-only", action="store_true", help="only upload git bundle, not all files (iagitup compatibility mode)"
+        "--bundle-only",
+        action="store_true",
+        help="only upload git bundle, not all files (iagitup compatibility mode)",
     )
-    parser.add_argument("--no-update-check", action="store_true", help="Skip checking for updates on PyPI")
-    parser.add_argument("--no-repo-info", action="store_true", help="Skip creating the repository info JSON file")
+    parser.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="Skip checking for updates on PyPI",
+    )
+    parser.add_argument(
+        "--no-repo-info",
+        action="store_true",
+        help="Skip creating the repository info JSON file",
+    )
 
     release_group = parser.add_argument_group("release options", "Download releases from supported git providers")
     release_group.add_argument(
-        "--releases", action="store_true", help="Download releases from the repository (GitHub, GitLab, etc)"
+        "--releases",
+        action="store_true",
+        help="Download releases from the repository (GitHub, GitLab, etc)",
     )
     release_group.add_argument("--all-releases", action="store_true", help="Download all releases")
     release_group.add_argument(
-        "--latest-release", action="store_true", help="Download only the latest release (default when used)"
+        "--latest-release",
+        action="store_true",
+        help="Download only the latest release (default when used)",
     )
 
     branch_group = parser.add_argument_group("branch options", "Archive multiple branches")
-    branch_group.add_argument("--all-branches", action="store_true", help="Clone and archive all branches of the repository")
-    branch_group.add_argument("--branch", type=str, help="Clone and archive a specific branch of the repository")
+    branch_group.add_argument(
+        "--all-branches",
+        action="store_true",
+        help="Clone and archive all branches of the repository",
+    )
+    branch_group.add_argument(
+        "--branch",
+        type=str,
+        help="Clone and archive a specific branch of the repository",
+    )
 
     selfhosted_group = parser.add_argument_group("self-hosted instance options", "Options for self-hosted git instances")
     selfhosted_group.add_argument(
@@ -179,10 +208,14 @@ Key improvements over iagitup:
         help="Specify the git provider type for self-hosted instances",
     )
     selfhosted_group.add_argument(
-        "--api-url", type=str, help="Custom API URL for self-hosted instances (e.g., https://git.example.com/api/v1)"
+        "--api-url",
+        type=str,
+        help="Custom API URL for self-hosted instances (e.g., https://git.example.com/api/v1)",
     )
     selfhosted_group.add_argument(
-        "--api-token", type=str, help="API token for authentication with private/self-hosted repositories"
+        "--api-token",
+        type=str,
+        help="API token for authentication with private/self-hosted repositories",
     )
 
     return parser
@@ -221,7 +254,7 @@ def main(argv=None):
     verbose = not args.quiet
     archiver = iagitbetter.GitArchiver(
         verbose=verbose,
-        git_provider_type=args.git_provider_type if hasattr(args, "git_provider_type") else None,
+        git_provider_type=(args.git_provider_type if hasattr(args, "git_provider_type") else None),
         api_url=args.api_url if hasattr(args, "api_url") else None,
         api_token=args.api_token if hasattr(args, "api_token") else None,
     )
