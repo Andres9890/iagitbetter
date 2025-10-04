@@ -925,6 +925,7 @@ class GitArchiver:
         """Get all files in the repository, preserving directory structure."""
         files_to_upload = {}
         skipped_empty_files = []
+        renamed_svg_files = []
 
         for root, dirs, files in os.walk(repo_path):
             # Only skip the .git directory itself, not .github or similar folders
@@ -953,8 +954,15 @@ class GitArchiver:
 
                 # Get relative path to preserve directory structure
                 relative_path = os.path.relpath(file_path, repo_path)
-                # Use relative path as key for Internet Archive
-                files_to_upload[relative_path] = file_path
+
+                # Rename .svg files to .svg.xml for Internet Archive compatibility
+                if relative_path.lower().endswith(".svg"):
+                    upload_name = relative_path + ".xml"
+                    renamed_svg_files.append(relative_path)
+                else:
+                    upload_name = relative_path
+
+                files_to_upload[upload_name] = file_path
 
         # Log information about skipped empty files
         if skipped_empty_files and self.verbose:
@@ -963,6 +971,14 @@ class GitArchiver:
                 print(f"     - {empty_file}")
             if len(skipped_empty_files) > 5:
                 print(f"     ... and {len(skipped_empty_files) - 5} more")
+
+        # Log information about renamed SVG files
+        if renamed_svg_files and self.verbose:
+            print(f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
+            for svg_file in renamed_svg_files[:5]:  # Show first 5
+                print(f"     - {svg_file} → {svg_file}.xml")
+            if len(renamed_svg_files) > 5:
+                print(f"     ... and {len(renamed_svg_files) - 5} more")
 
         return files_to_upload
 
