@@ -481,7 +481,7 @@ class GitArchiver:
         return info_path
 
     def fetch_releases(self):
-        """Fetch releases from the git provider API"""
+        """Fetch releases from the git provider API with pagination support"""
         domain = self.repo_data["domain"]
         owner = self.repo_data["owner"]
         repo_name = self.repo_data["repo_name"]
@@ -490,116 +490,167 @@ class GitArchiver:
 
         try:
             if domain == "github.com" or self.repo_data["git_site"] == "github":
-                # GitHub releases API
-                url = f"https://api.github.com/repos/{owner}/{repo_name}/releases"
-                headers = {}
-                if self.api_token and (self.repo_data.get("git_site") == "github"):
-                    headers["Authorization"] = f"token {self.api_token}"
-                response = requests.get(url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    api_releases = response.json()
-                    for release in api_releases:
-                        release_data = {
-                            "id": release.get("id"),
-                            "tag_name": release.get("tag_name"),
-                            "name": release.get("name", release.get("tag_name")),
-                            "body": release.get("body", ""),
-                            "draft": release.get("draft", False),
-                            "prerelease": release.get("prerelease", False),
-                            "published_at": release.get("published_at"),
-                            "zipball_url": release.get("zipball_url"),
-                            "tarball_url": release.get("tarball_url"),
-                            "assets": [],
-                        }
+                # GitHub releases API with pagination
+                page = 1
+                per_page = 100  # GitHub allows up to 100 per page
 
-                        # Add assets
-                        for asset in release.get("assets", []):
-                            release_data["assets"].append(
-                                {
-                                    "name": asset.get("name"),
-                                    "download_url": asset.get("browser_download_url"),
-                                    "size": asset.get("size"),
-                                    "content_type": asset.get("content_type"),
-                                }
-                            )
-
-                        releases.append(release_data)
-
-            elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
-                # GitLab releases API (respect self-hosted domain)
-                project_id = self.repo_data.get("project_id")
-                if project_id:
-                    url = f"https://{domain}/api/v4/projects/{project_id}/releases"
+                while True:
+                    url = f"https://api.github.com/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
                     headers = {}
-                    if self.api_token:
-                        headers["PRIVATE-TOKEN"] = self.api_token
+                    if self.api_token and (self.repo_data.get("git_site") == "github"):
+                        headers["Authorization"] = f"token {self.api_token}"
+
                     response = requests.get(url, headers=headers, timeout=10)
                     if response.status_code == 200:
                         api_releases = response.json()
+
+                        # If no more releases, break
+                        if not api_releases:
+                            break
+
                         for release in api_releases:
                             release_data = {
+                                "id": release.get("id"),
                                 "tag_name": release.get("tag_name"),
                                 "name": release.get("name", release.get("tag_name")),
-                                "description": release.get("description", ""),
-                                "released_at": release.get("released_at"),
+                                "body": release.get("body", ""),
+                                "draft": release.get("draft", False),
+                                "prerelease": release.get("prerelease", False),
+                                "published_at": release.get("published_at"),
+                                "zipball_url": release.get("zipball_url"),
+                                "tarball_url": release.get("tarball_url"),
                                 "assets": [],
                             }
 
-                            # Use instance domain for source archives
-                            tag_name = release.get("tag_name")
-                            release_data["zipball_url"] = (
-                                f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip"
-                            )
-                            release_data["tarball_url"] = (
-                                f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz"
-                            )
-
-                            # Add release assets/links
-                            for link in release.get("assets", {}).get("links", []):
+                            # Add assets
+                            for asset in release.get("assets", []):
                                 release_data["assets"].append(
                                     {
-                                        "name": link.get("name"),
-                                        "download_url": link.get("url"),
-                                        "link_type": link.get("link_type"),
+                                        "name": asset.get("name"),
+                                        "download_url": asset.get("browser_download_url"),
+                                        "size": asset.get("size"),
+                                        "content_type": asset.get("content_type"),
                                     }
                                 )
 
                             releases.append(release_data)
 
-            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data["git_site"] in ["codeberg", "gitea"]:
-                # Gitea/Forgejo releases API
-                url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases"
-                headers = {}
-                if self.api_token:
-                    headers["Authorization"] = f"token {self.api_token}"
-                response = requests.get(url, headers=headers, timeout=10)
-                if response.status_code == 200:
-                    api_releases = response.json()
-                    for release in api_releases:
-                        release_data = {
-                            "id": release.get("id"),
-                            "tag_name": release.get("tag_name"),
-                            "name": release.get("name", release.get("tag_name")),
-                            "body": release.get("body", ""),
-                            "draft": release.get("draft", False),
-                            "prerelease": release.get("prerelease", False),
-                            "published_at": release.get("published_at"),
-                            "zipball_url": release.get("zipball_url"),
-                            "tarball_url": release.get("tarball_url"),
-                            "assets": [],
-                        }
+                        # Check if there are more pages
+                        if len(api_releases) < per_page:
+                            break
+                        page += 1
+                    else:
+                        break
 
-                        # Add assets
-                        for asset in release.get("assets", []):
-                            release_data["assets"].append(
-                                {
-                                    "name": asset.get("name"),
-                                    "download_url": asset.get("browser_download_url"),
-                                    "size": asset.get("size"),
+            elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
+                # GitLab releases API with pagination
+                project_id = self.repo_data.get("project_id")
+                if project_id:
+                    page = 1
+                    per_page = 100  # GitLab allows up to 100 per page
+
+                    while True:
+                        url = f"https://{domain}/api/v4/projects/{project_id}/releases?per_page={per_page}&page={page}"
+                        headers = {}
+                        if self.api_token:
+                            headers["PRIVATE-TOKEN"] = self.api_token
+
+                        response = requests.get(url, headers=headers, timeout=10)
+                        if response.status_code == 200:
+                            api_releases = response.json()
+
+                            # If no more releases, break
+                            if not api_releases:
+                                break
+
+                            for release in api_releases:
+                                release_data = {
+                                    "tag_name": release.get("tag_name"),
+                                    "name": release.get("name", release.get("tag_name")),
+                                    "description": release.get("description", ""),
+                                    "released_at": release.get("released_at"),
+                                    "assets": [],
                                 }
-                            )
 
-                        releases.append(release_data)
+                                # Use instance domain for source archives
+                                tag_name = release.get("tag_name")
+                                release_data["zipball_url"] = (
+                                    f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip"
+                                )
+                                release_data["tarball_url"] = (
+                                    f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz"
+                                )
+
+                                # Add release assets/links
+                                for link in release.get("assets", {}).get("links", []):
+                                    release_data["assets"].append(
+                                        {
+                                            "name": link.get("name"),
+                                            "download_url": link.get("url"),
+                                            "link_type": link.get("link_type"),
+                                        }
+                                    )
+
+                                releases.append(release_data)
+
+                            # Check if there are more pages
+                            if len(api_releases) < per_page:
+                                break
+                            page += 1
+                        else:
+                            break
+
+            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data["git_site"] in ["codeberg", "gitea"]:
+                # Gitea/Forgejo releases API with pagination
+                page = 1
+                per_page = 50  # Gitea default max is 50
+
+                while True:
+                    url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+                    headers = {}
+                    if self.api_token:
+                        headers["Authorization"] = f"token {self.api_token}"
+
+                    response = requests.get(url, headers=headers, timeout=10)
+                    if response.status_code == 200:
+                        api_releases = response.json()
+
+                        # If no more releases, break
+                        if not api_releases:
+                            break
+
+                        for release in api_releases:
+                            release_data = {
+                                "id": release.get("id"),
+                                "tag_name": release.get("tag_name"),
+                                "name": release.get("name", release.get("tag_name")),
+                                "body": release.get("body", ""),
+                                "draft": release.get("draft", False),
+                                "prerelease": release.get("prerelease", False),
+                                "published_at": release.get("published_at"),
+                                "zipball_url": release.get("zipball_url"),
+                                "tarball_url": release.get("tarball_url"),
+                                "assets": [],
+                            }
+
+                            # Add assets
+                            for asset in release.get("assets", []):
+                                release_data["assets"].append(
+                                    {
+                                        "name": asset.get("name"),
+                                        "download_url": asset.get("browser_download_url"),
+                                        "size": asset.get("size"),
+                                    }
+                                )
+
+                            releases.append(release_data)
+
+                        # Check if there are more pages
+                        if len(api_releases) < per_page:
+                            break
+                        page += 1
+                    else:
+                        break
 
             self.repo_data["releases"] = releases
             if self.verbose and releases:
