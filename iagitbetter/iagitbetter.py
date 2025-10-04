@@ -127,7 +127,7 @@ class GitArchiver:
         # Handle different URL formats
         if len(path_parts) >= 2:
             owner = path_parts[0]
-            repo_name = path_parts[1].replace(".git", "")
+            repo_name = path_parts[1].removesuffix(".git")
         else:
             # Fallback for unusual URLs
             owner = "unknown"
