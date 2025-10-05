@@ -7,7 +7,7 @@ Improved version with support for all git providers and full file preservation
 
 from . import __version__
 
-__author__ = "Andres99"
+__author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
 import argparse
@@ -1244,59 +1244,47 @@ class GitArchiver:
             return None
 
     def get_all_files(self, repo_path):
-    """Get all files in the repository, preserving directory structure."""
-    files_to_upload = {}
-    skipped_empty_files = []
-    renamed_svg_files = []
+        """Get all files in the repository, preserving directory structure."""
+        files_to_upload = {}
+        skipped_empty_files = []
+        renamed_svg_files = []
 
-    for root, dirs, files in os.walk(repo_path):
-        dir_name = os.path.basename(root)
-        if dir_name == ".git":
-            continue
-
-        if os.sep + ".git" + os.sep in root or root.endswith(os.sep + ".git"):
-            continue
-
-        for file in files:
-            file_path = os.path.join(root, file)
-
-            try:
-                file_size = os.path.getsize(file_path)
-                if file_size == 0:
-                    relative_path = os.path.relpath(file_path, repo_path)
-                    # Normalize to forward slashes for cross-platform
-                    relative_path = relative_path.replace(os.sep, '/')
-                    skipped_empty_files.append(relative_path)
-                    continue
-            except OSError:
+        for root, dirs, files in os.walk(repo_path):
+            # Only skip the .git directory itself, not .github or similar folders
+            # Check if the current directory is exactly .git
+            dir_name = os.path.basename(root)
+            if dir_name == ".git":
                 continue
 
-            relative_path = os.path.relpath(file_path, repo_path)
-            relative_path = relative_path.replace(os.sep, '/')
+            # Also skip if any parent directory is .git
+            if os.sep + ".git" + os.sep in root or root.endswith(os.sep + ".git"):
+                continue
 
-            if relative_path.lower().endswith(".svg"):
-                upload_name = relative_path + ".xml"
-                renamed_svg_files.append(relative_path)
-            else:
-                upload_name = relative_path
+            for file in files:
+                file_path = os.path.join(root, file)
 
-            files_to_upload[upload_name] = file_path
+                # Check if file is empty (0 bytes) and skip it
+                try:
+                    file_size = os.path.getsize(file_path)
+                    if file_size == 0:
+                        relative_path = os.path.relpath(file_path, repo_path)
+                        skipped_empty_files.append(relative_path)
+                        continue
+                except OSError:
+                    # Skip files that can't be accessed
+                    continue
 
-    if skipped_empty_files and self.verbose:
-        print(f"   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):")
-        for empty_file in skipped_empty_files[:5]:
-            print(f"     - {empty_file}")
-        if len(skipped_empty_files) > 5:
-            print(f"     ... and {len(skipped_empty_files) - 5} more")
+                # Get relative path to preserve directory structure
+                relative_path = os.path.relpath(file_path, repo_path)
 
-    if renamed_svg_files and self.verbose:
-        print(f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
-        for svg_file in renamed_svg_files[:5]:
-            print(f"     - {svg_file} → {svg_file}.xml")
-        if len(renamed_svg_files) > 5:
-            print(f"     ... and {len(renamed_svg_files) - 5} more")
+                # Rename .svg files to .svg.xml for Internet Archive compatibility
+                if relative_path.lower().endswith(".svg"):
+                    upload_name = relative_path + ".xml"
+                    renamed_svg_files.append(relative_path)
+                else:
+                    upload_name = relative_path
 
-    return files_to_upload
+                files_to_upload[upload_name] = file_path
 
         # Log information about skipped empty files
         if skipped_empty_files and self.verbose:
