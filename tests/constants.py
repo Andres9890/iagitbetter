@@ -152,16 +152,28 @@ bitbucket_api_response = {
     "has_wiki": True,
     "name": "testrepo",
     "links": {
-        "watchers": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/watchers"},
-        "branches": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/branches"},
-        "tags": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/tags"},
-        "commits": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/commits"},
+        "watchers": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/watchers"
+        },
+        "branches": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/branches"
+        },
+        "tags": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/refs/tags"
+        },
+        "commits": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/commits"
+        },
         "clone": [
             {"name": "https", "href": "https://bitbucket.org/testuser/testrepo.git"},
             {"name": "ssh", "href": "git@bitbucket.org:testuser/testrepo.git"},
         ],
-        "self": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo"},
-        "source": {"href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/src"},
+        "self": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo"
+        },
+        "source": {
+            "href": "https://api.bitbucket.org/2.0/repositories/testuser/testrepo/src"
+        },
         "html": {"href": "https://bitbucket.org/testuser/testrepo"},
         "avatar": {"href": "https://bitbucket.org/testuser/testrepo/avatar/32/"},
     },
@@ -173,7 +185,9 @@ bitbucket_api_response = {
         "links": {
             "self": {"href": "https://api.bitbucket.org/2.0/users/testuser"},
             "html": {"href": "https://bitbucket.org/testuser/"},
-            "avatar": {"href": "https://secure.gravatar.com/avatar/12345?d=https%3A%2F%2Favatar.png"},
+            "avatar": {
+                "href": "https://secure.gravatar.com/avatar/12345?d=https%3A%2F%2Favatar.png"
+            },
         },
         "type": "user",
         "username": "testuser",
@@ -185,7 +199,9 @@ bitbucket_api_response = {
         "links": {
             "self": {"href": "https://api.bitbucket.org/2.0/workspaces/testuser"},
             "html": {"href": "https://bitbucket.org/testuser/"},
-            "avatar": {"href": "https://bitbucket.org/workspaces/testuser/avatar/?ts=1234567890"},
+            "avatar": {
+                "href": "https://bitbucket.org/workspaces/testuser/avatar/?ts=1234567890"
+            },
         },
         "uuid": "{12345678-1234-1234-1234-123456789012}",
     },
@@ -204,9 +220,13 @@ bitbucket_api_response = {
         "uuid": "{87654321-4321-4321-4321-210987654321}",
         "name": "Test Project",
         "links": {
-            "self": {"href": "https://api.bitbucket.org/2.0/workspaces/testuser/projects/TEST"},
+            "self": {
+                "href": "https://api.bitbucket.org/2.0/workspaces/testuser/projects/TEST"
+            },
             "html": {"href": "https://bitbucket.org/testuser/workspace/projects/TEST"},
-            "avatar": {"href": "https://bitbucket.org/account/user/testuser/projects/TEST/avatar/32"},
+            "avatar": {
+                "href": "https://bitbucket.org/account/user/testuser/projects/TEST/avatar/32"
+            },
         },
     },
     "language": "python",
@@ -391,7 +411,10 @@ bitbucket_user_repos_response = {
             "parent": None,
             "links": {
                 "clone": [
-                    {"name": "https", "href": "https://bitbucket.org/testuser/repo1.git"},
+                    {
+                        "name": "https",
+                        "href": "https://bitbucket.org/testuser/repo1.git",
+                    },
                     {"name": "ssh", "href": "git@bitbucket.org:testuser/repo1.git"},
                 ],
                 "html": {"href": "https://bitbucket.org/testuser/repo1"},
@@ -411,7 +434,10 @@ bitbucket_user_repos_response = {
             },
             "links": {
                 "clone": [
-                    {"name": "https", "href": "https://bitbucket.org/testuser/repo2.git"},
+                    {
+                        "name": "https",
+                        "href": "https://bitbucket.org/testuser/repo2.git",
+                    },
                     {"name": "ssh", "href": "git@bitbucket.org:testuser/repo2.git"},
                 ],
                 "html": {"href": "https://bitbucket.org/testuser/repo2"},

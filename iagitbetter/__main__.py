@@ -87,7 +87,9 @@ def check_for_updates(current_version, verbose=True):
             latest_parts.extend([0] * (max_len - len(latest_parts)))
 
             if latest_parts > current_parts:
-                print(f"Update available: {latest_version} (current is {current_version})")
+                print(
+                    f"Update available: {latest_version} (current is {current_version})"
+                )
                 print("   Run: pip install --upgrade iagitbetter")
                 print()
     except Exception:
@@ -189,20 +191,26 @@ Key improvements over iagitup:
         help="Skip creating the repository info JSON file",
     )
 
-    release_group = parser.add_argument_group("release options", "Download releases from supported git providers")
+    release_group = parser.add_argument_group(
+        "release options", "Download releases from supported git providers"
+    )
     release_group.add_argument(
         "--releases",
         action="store_true",
         help="Download releases from the repository (GitHub, GitLab, etc)",
     )
-    release_group.add_argument("--all-releases", action="store_true", help="Download all releases")
+    release_group.add_argument(
+        "--all-releases", action="store_true", help="Download all releases"
+    )
     release_group.add_argument(
         "--latest-release",
         action="store_true",
         help="Download only the latest release (default when used)",
     )
 
-    branch_group = parser.add_argument_group("branch options", "Archive multiple branches")
+    branch_group = parser.add_argument_group(
+        "branch options", "Archive multiple branches"
+    )
     branch_group.add_argument(
         "--all-branches",
         action="store_true",
@@ -214,7 +222,9 @@ Key improvements over iagitup:
         help="Clone and archive a specific branch of the repository",
     )
 
-    profile_group = parser.add_argument_group("profile archiving options", "Options for archiving user/org profiles")
+    profile_group = parser.add_argument_group(
+        "profile archiving options", "Options for archiving user/org profiles"
+    )
     profile_group.add_argument(
         "--skip-forks",
         action="store_true",
@@ -236,7 +246,9 @@ Key improvements over iagitup:
         help="Maximum number of repositories to archive from a profile",
     )
 
-    selfhosted_group = parser.add_argument_group("self-hosted instance options", "Options for self-hosted git instances")
+    selfhosted_group = parser.add_argument_group(
+        "self-hosted instance options", "Options for self-hosted git instances"
+    )
     selfhosted_group.add_argument(
         "--git-provider-type",
         type=str,
@@ -309,7 +321,9 @@ def archive_single_repository(archiver, url, args, verbose):
         # Clone the repository
         if verbose:
             print(f"Downloading {url} repository...")
-        repo_path = archiver.clone_repository(url, all_branches=args.all_branches, specific_branch=args.branch)
+        repo_path = archiver.clone_repository(
+            url, all_branches=args.all_branches, specific_branch=args.branch
+        )
 
         # Download releases if requested (skip for bundle-only mode)
         if args.releases and not args.bundle_only:
@@ -345,7 +359,9 @@ def archive_profile(archiver, url, args, verbose):
 
     if len(path_parts) != 1:
         print(f"Error: Invalid profile URL: {url}")
-        print("Profile URLs should have only one path component (username/organization)")
+        print(
+            "Profile URLs should have only one path component (username/organization)"
+        )
         return []
 
     username = path_parts[0]
@@ -394,19 +410,25 @@ def archive_profile(archiver, url, args, verbose):
     if args.skip_forks:
         filtered_repos = [r for r in filtered_repos if not r.get("fork", False)]
         if verbose:
-            print(f"   Filtered out {original_count - len(filtered_repos)} forked repositories")
+            print(
+                f"   Filtered out {original_count - len(filtered_repos)} forked repositories"
+            )
 
     if args.skip_archived:
         before_filter = len(filtered_repos)
         filtered_repos = [r for r in filtered_repos if not r.get("archived", False)]
         if verbose and before_filter != len(filtered_repos):
-            print(f"   Filtered out {before_filter - len(filtered_repos)} archived repositories")
+            print(
+                f"   Filtered out {before_filter - len(filtered_repos)} archived repositories"
+            )
 
     if args.skip_private:
         before_filter = len(filtered_repos)
         filtered_repos = [r for r in filtered_repos if not r.get("private", False)]
         if verbose and before_filter != len(filtered_repos):
-            print(f"   Filtered out {before_filter - len(filtered_repos)} private repositories")
+            print(
+                f"   Filtered out {before_filter - len(filtered_repos)} private repositories"
+            )
 
     if args.max_repos and len(filtered_repos) > args.max_repos:
         filtered_repos = filtered_repos[: args.max_repos]
@@ -440,11 +462,15 @@ def archive_profile(archiver, url, args, verbose):
             api_username=archiver.api_username,
         )
 
-        identifier, metadata = archive_single_repository(repo_archiver, clone_url, args, verbose)
+        identifier, metadata = archive_single_repository(
+            repo_archiver, clone_url, args, verbose
+        )
 
         if identifier:
             successful += 1
-            results.append({"repo": repo_name, "identifier": identifier, "success": True})
+            results.append(
+                {"repo": repo_name, "identifier": identifier, "success": True}
+            )
             if verbose:
                 print(f"  Successfully archived: {repo_name}")
                 print(f"   URL: https://archive.org/details/{identifier}")
@@ -521,7 +547,9 @@ def main(argv=None):
     verbose = not args.quiet
     archiver = iagitbetter.GitArchiver(
         verbose=verbose,
-        git_provider_type=(args.git_provider_type if hasattr(args, "git_provider_type") else None),
+        git_provider_type=(
+            args.git_provider_type if hasattr(args, "git_provider_type") else None
+        ),
         api_url=args.api_url if hasattr(args, "api_url") else None,
         api_token=args.api_token if hasattr(args, "api_token") else None,
         api_username=args.api_username if hasattr(args, "api_username") else None,
@@ -549,7 +577,9 @@ def main(argv=None):
             results = archive_profile(archiver, URL, args, verbose)
         else:
             # Single repository archiving mode
-            identifier, metadata = archive_single_repository(archiver, URL, args, verbose)
+            identifier, metadata = archive_single_repository(
+                archiver, URL, args, verbose
+            )
 
             # Output results
             if identifier:
@@ -562,7 +592,9 @@ def main(argv=None):
 
                 # Show dates information
                 if "first_commit_date" in archiver.repo_data:
-                    print(f"First Commit Date: {archiver.repo_data['first_commit_date'].strftime('%Y-%m-%d %H:%M:%S')}")
+                    print(
+                        f"First Commit Date: {archiver.repo_data['first_commit_date'].strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
                 print(f"Archive Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
                 # Show additional metadata if available
@@ -584,28 +616,44 @@ def main(argv=None):
                     if args.all_branches:
                         branch_count = archiver.repo_data.get("branch_count", 0)
                         branches = archiver.repo_data.get("branches", [])
-                        default_branch = archiver.repo_data.get("default_branch", "main")
+                        default_branch = archiver.repo_data.get(
+                            "default_branch", "main"
+                        )
                         branches_dir = archiver.repo_data.get("branches_dir_name", "")
                         print(f"Branches: {branch_count} branches archived")
-                        print(f"   Default branch ({default_branch}): Files in root directory")
+                        print(
+                            f"   Default branch ({default_branch}): Files in root directory"
+                        )
                         other_branches = [b for b in branches if b != default_branch]
                         if other_branches and branches_dir:
-                            print(f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)")
+                            print(
+                                f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)"
+                            )
                     elif args.branch:
                         print(f"Branch: {args.branch} archived")
                     if args.releases:
                         release_count = archiver.repo_data.get("downloaded_releases", 0)
-                        releases_dir = archiver.repo_data.get("releases_dir_name", "releases")
+                        releases_dir = archiver.repo_data.get(
+                            "releases_dir_name", "releases"
+                        )
                         if args.all_releases:
-                            print(f"Releases: {release_count} releases archived in {releases_dir}/")
+                            print(
+                                f"Releases: {release_count} releases archived in {releases_dir}/"
+                            )
                         else:
-                            print(f"Releases: Latest release archived in {releases_dir}/")
+                            print(
+                                f"Releases: Latest release archived in {releases_dir}/"
+                            )
 
                 print("Archived repository URL:")
                 print(f"    https://archive.org/details/{identifier}")
                 print("Archived git bundle file:")
-                bundle_name = f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
-                print(f"    https://archive.org/download/{identifier}/{bundle_name}.bundle")
+                bundle_name = (
+                    f"{archiver.repo_data['owner']}-{archiver.repo_data['repo_name']}"
+                )
+                print(
+                    f"    https://archive.org/download/{identifier}/{bundle_name}.bundle"
+                )
 
                 print("=" * 60)
                 print("Archive complete")

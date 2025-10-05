@@ -68,7 +68,9 @@ def check_for_updates(current_version, verbose=True):
             latest_parts.extend([0] * (max_len - len(latest_parts)))
 
             if latest_parts > current_parts:
-                print(f"Update available: {latest_version} (current is v{current_version})")
+                print(
+                    f"Update available: {latest_version} (current is v{current_version})"
+                )
                 print("   upgrade with: pip install --upgrade iagitbetter")
                 print()
     except Exception:
@@ -116,7 +118,11 @@ class GitArchiver:
                 repositories = self._fetch_github_user_repos(username)
             elif site == "gitlab" or domain == "gitlab.com":
                 repositories = self._fetch_gitlab_user_repos(username)
-            elif site in ["gitea", "codeberg"] or "gitea" in domain or domain == "codeberg.org":
+            elif (
+                site in ["gitea", "codeberg"]
+                or "gitea" in domain
+                or domain == "codeberg.org"
+            ):
                 repositories = self._fetch_gitea_user_repos(username)
             elif site == "bitbucket" or domain == "bitbucket.org":
                 repositories = self._fetch_bitbucket_user_repos(username)
@@ -195,7 +201,9 @@ class GitArchiver:
                 page += 1
             else:
                 if self.verbose:
-                    print(f"   Error fetching GitHub repos (status {response.status_code})")
+                    print(
+                        f"   Error fetching GitHub repos (status {response.status_code})"
+                    )
                 break
 
         return repos
@@ -207,7 +215,11 @@ class GitArchiver:
         per_page = 100
 
         # First, try to get user ID
-        base_url = self.api_url if self.api_url else f"https://{self.repo_data.get('domain', 'gitlab.com')}/api/v4"
+        base_url = (
+            self.api_url
+            if self.api_url
+            else f"https://{self.repo_data.get('domain', 'gitlab.com')}/api/v4"
+        )
         headers = {}
         if self.api_token:
             headers["PRIVATE-TOKEN"] = self.api_token
@@ -261,7 +273,11 @@ class GitArchiver:
         page = 1
         per_page = 50
 
-        base_url = self.api_url if self.api_url else f"https://{self.repo_data.get('domain', 'gitea.com')}/api/v1"
+        base_url = (
+            self.api_url
+            if self.api_url
+            else f"https://{self.repo_data.get('domain', 'gitea.com')}/api/v1"
+        )
         headers = {}
         if self.api_token:
             headers["Authorization"] = f"token {self.api_token}"
@@ -301,7 +317,9 @@ class GitArchiver:
         """Build Bitbucket auth headers supporting App Passwords (Basic) or OAuth (Bearer)."""
         # App Passwords: requires username + app password via basic auth
         if self.api_username and self.api_token:
-            token = base64.b64encode(f"{self.api_username}:{self.api_token}".encode("utf-8")).decode("utf-8")
+            token = base64.b64encode(
+                f"{self.api_username}:{self.api_token}".encode("utf-8")
+            ).decode("utf-8")
             return {"Authorization": f"Basic {token}"}
         # OAuth 2 access token: Bearer
         if self.api_token:
@@ -333,7 +351,9 @@ class GitArchiver:
                             "name": repo["name"],
                             "full_name": repo["full_name"],
                             "clone_url": clone_url or "",
-                            "html_url": repo.get("links", {}).get("html", {}).get("href", ""),
+                            "html_url": repo.get("links", {})
+                            .get("html", {})
+                            .get("href", ""),
                             "description": repo.get("description", ""),
                             "fork": repo.get("parent") is not None,
                             "archived": False,  # Bitbucket doesn't have archived status in API
@@ -387,7 +407,9 @@ class GitArchiver:
         else:
             # Fallback for unusual URLs
             owner = "unknown"
-            repo_name = path_parts[0].replace(".git", "") if path_parts else "repository"
+            repo_name = (
+                path_parts[0].replace(".git", "") if path_parts else "repository"
+            )
 
         self.repo_data = {
             "url": repo_url,
@@ -434,7 +456,11 @@ class GitArchiver:
             return f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}"
         elif site == "bitbucket" or domain == "bitbucket.org":
             return f"https://api.bitbucket.org/2.0/repositories/{owner}/{repo_name}"
-        elif site in ["codeberg", "gitea"] or "gitea" in domain or domain == "codeberg.org":
+        elif (
+            site in ["codeberg", "gitea"]
+            or "gitea" in domain
+            or domain == "codeberg.org"
+        ):
             return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
         return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
 
@@ -445,7 +471,9 @@ class GitArchiver:
 
             # Prepare headers for authentication
             headers = {}
-            site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
+            site = (
+                self.git_provider_type or self.repo_data.get("git_site") or ""
+            ).lower()
             if self.api_token:
                 if site == "github":
                     headers["Authorization"] = f"token {self.api_token}"
@@ -466,13 +494,19 @@ class GitArchiver:
                 self._parse_api_response(api_data)
             elif response.status_code == 404:
                 if self.verbose:
-                    print("   Note: Repository not found via API (may be private or API not available)")
+                    print(
+                        "   Note: Repository not found via API (may be private or API not available)"
+                    )
             elif response.status_code == 401:
                 if self.verbose:
-                    print("   Note: API authentication required. Use --api-token for private repositories")
+                    print(
+                        "   Note: API authentication required. Use --api-token for private repositories"
+                    )
             else:
                 if self.verbose:
-                    print(f"   Note: Could not fetch API metadata (status {response.status_code})")
+                    print(
+                        f"   Note: Could not fetch API metadata (status {response.status_code})"
+                    )
         except Exception as e:
             if self.verbose:
                 print(f"   Note: Could not fetch API metadata: {e}")
@@ -512,7 +546,11 @@ class GitArchiver:
                 "open_issues": api_data.get("open_issues_count", 0),
                 "homepage": api_data.get("homepage", ""),
                 "topics": api_data.get("topics", []),
-                "license": (api_data.get("license", {}).get("name", "") if api_data.get("license") else ""),
+                "license": (
+                    api_data.get("license", {}).get("name", "")
+                    if api_data.get("license")
+                    else ""
+                ),
                 "default_branch": api_data.get("default_branch", "main"),
                 "has_wiki": api_data.get("has_wiki", False),
                 "has_pages": api_data.get("has_pages", False),
@@ -529,7 +567,11 @@ class GitArchiver:
                 "svn_url": api_data.get("svn_url", ""),
                 "mirror_url": api_data.get("mirror_url", ""),
                 "visibility": api_data.get("visibility", "public"),
-                "avatar_url": (api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else ""),
+                "avatar_url": (
+                    api_data.get("owner", {}).get("avatar_url", "")
+                    if api_data.get("owner")
+                    else ""
+                ),
             }
         )
 
@@ -548,7 +590,11 @@ class GitArchiver:
         # Handle relative URLs by prefixing with instance URL
         if avatar_url and not avatar_url.startswith(("http://", "https://")):
             instance_url = f"https://{self.repo_data['domain']}"
-            avatar_url = f"{instance_url}{avatar_url}" if avatar_url.startswith("/") else f"{instance_url}/{avatar_url}"
+            avatar_url = (
+                f"{instance_url}{avatar_url}"
+                if avatar_url.startswith("/")
+                else f"{instance_url}/{avatar_url}"
+            )
 
         self.repo_data.update(
             {
@@ -577,7 +623,11 @@ class GitArchiver:
                 "ci_enabled": api_data.get("builds_enabled", False),
                 "shared_runners_enabled": api_data.get("shared_runners_enabled", False),
                 "avatar_url": avatar_url,
-                "project_id": (str(api_data.get("id", "")) if api_data.get("id") is not None else ""),
+                "project_id": (
+                    str(api_data.get("id", ""))
+                    if api_data.get("id") is not None
+                    else ""
+                ),
             }
         )
 
@@ -594,15 +644,24 @@ class GitArchiver:
                 "size": api_data.get("size", 0),
                 "has_wiki": api_data.get("has_wiki", False),
                 "has_issues": api_data.get("has_issues", False),
-                "clone_url": api_data.get("links", {}).get("clone", [{}])[0].get("href", ""),
+                "clone_url": api_data.get("links", {})
+                .get("clone", [{}])[0]
+                .get("href", ""),
                 "homepage": api_data.get("website", ""),
                 "scm": api_data.get("scm", "git"),
                 "mainbranch": api_data.get("mainbranch", {}).get("name", "main"),
-                "project": (api_data.get("project", {}).get("name", "") if api_data.get("project") else ""),
+                "project": (
+                    api_data.get("project", {}).get("name", "")
+                    if api_data.get("project")
+                    else ""
+                ),
                 "owner_type": api_data.get("owner", {}).get("type", ""),
                 "owner_display_name": api_data.get("owner", {}).get("display_name", ""),
                 "avatar_url": (
-                    api_data.get("owner", {}).get("links", {}).get("avatar", {}).get("href", "")
+                    api_data.get("owner", {})
+                    .get("links", {})
+                    .get("avatar", {})
+                    .get("href", "")
                     if api_data.get("owner")
                     else ""
                 ),
@@ -641,7 +700,11 @@ class GitArchiver:
                 "internal_tracker": api_data.get("internal_tracker", {}),
                 "external_tracker": api_data.get("external_tracker", {}),
                 "external_wiki": api_data.get("external_wiki", {}),
-                "avatar_url": (api_data.get("owner", {}).get("avatar_url", "") if api_data.get("owner") else ""),
+                "avatar_url": (
+                    api_data.get("owner", {}).get("avatar_url", "")
+                    if api_data.get("owner")
+                    else ""
+                ),
             }
         )
 
@@ -651,7 +714,9 @@ class GitArchiver:
         self.repo_data.update(
             {
                 "description": api_data.get("description", ""),
-                "default_branch": api_data.get("default_branch", api_data.get("main_branch", "main")),
+                "default_branch": api_data.get(
+                    "default_branch", api_data.get("main_branch", "main")
+                ),
                 "private": api_data.get("private", api_data.get("is_private", False)),
                 "fork": api_data.get("fork", api_data.get("is_fork", False)),
                 "archived": api_data.get("archived", False),
@@ -686,7 +751,9 @@ class GitArchiver:
                 ext = ".webp"
             else:
                 # Try to guess from URL
-                if avatar_url.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                if avatar_url.lower().endswith(
+                    (".jpg", ".jpeg", ".png", ".gif", ".webp")
+                ):
                     ext = "." + avatar_url.split(".")[-1].lower()
                 else:
                     ext = ".jpg"  # Default fallback
@@ -720,7 +787,9 @@ class GitArchiver:
         for key, value in self.repo_data.items():
             if isinstance(value, datetime):
                 repo_info[key] = value.strftime("%Y-%m-%d %H:%M:%S")
-            elif isinstance(value, (list, dict, str, int, float, bool)) or value is None:
+            elif (
+                isinstance(value, (list, dict, str, int, float, bool)) or value is None
+            ):
                 repo_info[key] = value
             else:
                 repo_info[key] = str(value)
@@ -785,7 +854,9 @@ class GitArchiver:
                                 release_data["assets"].append(
                                     {
                                         "name": asset.get("name"),
-                                        "download_url": asset.get("browser_download_url"),
+                                        "download_url": asset.get(
+                                            "browser_download_url"
+                                        ),
                                         "size": asset.get("size"),
                                         "content_type": asset.get("content_type"),
                                     }
@@ -824,7 +895,9 @@ class GitArchiver:
                             for release in api_releases:
                                 release_data = {
                                     "tag_name": release.get("tag_name"),
-                                    "name": release.get("name", release.get("tag_name")),
+                                    "name": release.get(
+                                        "name", release.get("tag_name")
+                                    ),
                                     "description": release.get("description", ""),
                                     "released_at": release.get("released_at"),
                                     "assets": [],
@@ -858,7 +931,9 @@ class GitArchiver:
                         else:
                             break
 
-            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data["git_site"] in ["codeberg", "gitea"]:
+            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data[
+                "git_site"
+            ] in ["codeberg", "gitea"]:
                 # Gitea/Forgejo releases API with pagination
                 page = 1
                 per_page = 50  # Gitea default max is 50
@@ -896,7 +971,9 @@ class GitArchiver:
                                 release_data["assets"].append(
                                     {
                                         "name": asset.get("name"),
-                                        "download_url": asset.get("browser_download_url"),
+                                        "download_url": asset.get(
+                                            "browser_download_url"
+                                        ),
                                         "size": asset.get("size"),
                                     }
                                 )
@@ -940,7 +1017,9 @@ class GitArchiver:
             # Download only the latest non-prerelease release
             latest_release = None
             for release in releases:
-                if not release.get("prerelease", False) and not release.get("draft", False):
+                if not release.get("prerelease", False) and not release.get(
+                    "draft", False
+                ):
                     latest_release = release
                     break
             releases_to_download = [latest_release] if latest_release else []
@@ -950,7 +1029,9 @@ class GitArchiver:
                 print("   No suitable releases found to download")
             return
 
-        releases_dir_name = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_releases"
+        releases_dir_name = (
+            f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_releases"
+        )
         releases_dir = os.path.join(repo_path, releases_dir_name)
         os.makedirs(releases_dir, exist_ok=True)
 
@@ -1008,7 +1089,9 @@ class GitArchiver:
 
                 if download_url:
                     try:
-                        self._download_file(download_url, os.path.join(release_dir, asset_name))
+                        self._download_file(
+                            download_url, os.path.join(release_dir, asset_name)
+                        )
                         if self.verbose:
                             print(f"     Downloaded asset: {asset_name}")
                     except Exception as e:
@@ -1020,7 +1103,9 @@ class GitArchiver:
         self.repo_data["downloaded_releases"] = downloaded_count
         self.repo_data["releases_dir_name"] = releases_dir_name
         if self.verbose:
-            print(f"   Successfully downloaded {downloaded_count} release(s) to {releases_dir_name}/")
+            print(
+                f"   Successfully downloaded {downloaded_count} release(s) to {releases_dir_name}/"
+            )
 
     def _download_file(self, url, filepath):
         """Download a file from a URL to a local path"""
@@ -1060,7 +1145,9 @@ class GitArchiver:
             # Clone the repository
             if specific_branch:
                 # Clone specific branch only
-                repo = git.Repo.clone_from(repo_url, repo_path, branch=specific_branch, single_branch=True)
+                repo = git.Repo.clone_from(
+                    repo_url, repo_path, branch=specific_branch, single_branch=True
+                )
                 self.repo_data["specific_branch"] = specific_branch
             else:
                 # Clone all branches (default behavior)
@@ -1074,16 +1161,28 @@ class GitArchiver:
                 # Get all commits and find the first one (oldest)
                 commits = list(repo.iter_commits(all=True))
                 if commits:
-                    first_commit = commits[-1]  # Last in the list is the first chronologically
-                    last_commit = commits[0]  # First in the list is the last chronologically
+                    first_commit = commits[
+                        -1
+                    ]  # Last in the list is the first chronologically
+                    last_commit = commits[
+                        0
+                    ]  # First in the list is the last chronologically
 
-                    self.repo_data["first_commit_date"] = datetime.fromtimestamp(first_commit.committed_date)
-                    self.repo_data["last_commit_date"] = datetime.fromtimestamp(last_commit.committed_date)
+                    self.repo_data["first_commit_date"] = datetime.fromtimestamp(
+                        first_commit.committed_date
+                    )
+                    self.repo_data["last_commit_date"] = datetime.fromtimestamp(
+                        last_commit.committed_date
+                    )
                     self.repo_data["total_commits"] = len(commits)
 
                     if self.verbose:
-                        print(f"   First commit date: {self.repo_data['first_commit_date']}")
-                        print(f"   Last commit date: {self.repo_data['last_commit_date']}")
+                        print(
+                            f"   First commit date: {self.repo_data['first_commit_date']}"
+                        )
+                        print(
+                            f"   Last commit date: {self.repo_data['last_commit_date']}"
+                        )
                         print(f"   Total commits: {self.repo_data['total_commits']}")
                 else:
                     # Fallback if no commits found
@@ -1103,7 +1202,9 @@ class GitArchiver:
             if specific_branch:
                 default_branch = specific_branch
             else:
-                default_branch = repo.active_branch.name if repo.active_branch else "main"
+                default_branch = (
+                    repo.active_branch.name if repo.active_branch else "main"
+                )
             self.repo_data["default_branch"] = default_branch
 
             if all_branches and not specific_branch:
@@ -1148,16 +1249,24 @@ class GitArchiver:
             self.repo_data["branch_count"] = len(remote_branches)
 
             if self.verbose:
-                print(f"   Found {len(remote_branches)} branches: {', '.join(remote_branches)}")
-                print(f"   Default branch ({self.repo_data['default_branch']}) files will be in root directory")
+                print(
+                    f"   Found {len(remote_branches)} branches: {', '.join(remote_branches)}"
+                )
+                print(
+                    f"   Default branch ({self.repo_data['default_branch']}) files will be in root directory"
+                )
                 print(f"   Other branches will be organized in branches directory")
 
             # Create branches directory for non-default branches: {repo_name}-{owner}_branches
-            branches_dir_name = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_branches"
+            branches_dir_name = (
+                f"{self.repo_data['owner']}-{self.repo_data['repo_name']}_branches"
+            )
             branches_dir = os.path.join(repo_path, branches_dir_name)
 
             # Only create if there are other branches
-            other_branches = [b for b in remote_branches if b != self.repo_data["default_branch"]]
+            other_branches = [
+                b for b in remote_branches if b != self.repo_data["default_branch"]
+            ]
             if other_branches:
                 os.makedirs(branches_dir, exist_ok=True)
                 self.repo_data["branches_dir_name"] = branches_dir_name
@@ -1201,13 +1310,17 @@ class GitArchiver:
 
                 except Exception as e:
                     if self.verbose:
-                        print(f"     Warning: Could not process branch {branch_name}: {e}")
+                        print(
+                            f"     Warning: Could not process branch {branch_name}: {e}"
+                        )
 
             # Checkout default branch to keep files in root
             try:
                 repo.heads[self.repo_data["default_branch"]].checkout()
                 if self.verbose:
-                    print(f"   Checked out default branch: {self.repo_data['default_branch']}")
+                    print(
+                        f"   Checked out default branch: {self.repo_data['default_branch']}"
+                    )
             except Exception as e:
                 if self.verbose:
                     print(f"   Warning: Could not checkout default branch: {e}")
@@ -1299,7 +1412,9 @@ class GitArchiver:
 
         # Log information about renamed SVG files
         if renamed_svg_files and self.verbose:
-            print(f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
+            print(
+                f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
+            )
             for svg_file in renamed_svg_files[:5]:  # Show first 5
                 print(f"     - {svg_file} → {svg_file}.xml")
             if len(renamed_svg_files) > 5:
@@ -1400,7 +1515,9 @@ class GitArchiver:
                     archive_details.append(f"{release_count} release(s) with assets")
 
         # Build full description
-        bundle_filename = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
+        bundle_filename = (
+            f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
+        )
         description_footer = f"""<br/><hr/>
         <p><strong>Repository Information:</strong></p>
         <ul>
@@ -1516,7 +1633,9 @@ class GitArchiver:
             print(f"\nUploading to Internet Archive")
             print(f"   Identifier: {identifier}")
             print(f"   Title: {item_name}")
-            print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
+            print(
+                f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)"
+            )
             print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
             print(f"   Contents: {', '.join(archive_details)}")
 
@@ -1526,7 +1645,9 @@ class GitArchiver:
 
             if item.exists:
                 if self.verbose:
-                    print("\nThis repository version already exists on the Internet Archive")
+                    print(
+                        "\nThis repository version already exists on the Internet Archive"
+                    )
                     print(f"URL: https://archive.org/details/{identifier}")
                 return identifier, metadata
 
@@ -1576,7 +1697,9 @@ class GitArchiver:
                     print("Uploading git bundle only to Internet Archive")
                 else:
                     print(f"Uploading {len(files_to_upload)} files to Internet Archive")
-                print("This may take some time depending on repository size and connection speed")
+                print(
+                    "This may take some time depending on repository size and connection speed"
+                )
 
                 # Show what major components are being uploaded
                 components = []
@@ -1587,7 +1710,8 @@ class GitArchiver:
 
                 # Check if avatar is included
                 avatar_included = any(
-                    f.startswith(username) and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+                    f.startswith(username)
+                    and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
                     for f in files_to_upload.keys()
                 )
                 if avatar_included:
@@ -1597,7 +1721,11 @@ class GitArchiver:
                     if includes_all_branches:
                         branches_dir = self.repo_data.get("branches_dir_name")
                         if branches_dir:
-                            branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
+                            branch_files = [
+                                f
+                                for f in files_to_upload.keys()
+                                if f.startswith(branches_dir)
+                            ]
                             if branch_files:
                                 non_default_count = len(
                                     [
@@ -1606,13 +1734,19 @@ class GitArchiver:
                                         if b != self.repo_data.get("default_branch")
                                     ]
                                 )
-                                components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
+                                components.append(
+                                    f"Branches directory ({non_default_count} branches in {branches_dir}/)"
+                                )
                     if includes_releases and self.repo_data.get("releases_dir_name"):
                         release_files = [
-                            f for f in files_to_upload.keys() if f.startswith(self.repo_data["releases_dir_name"])
+                            f
+                            for f in files_to_upload.keys()
+                            if f.startswith(self.repo_data["releases_dir_name"])
                         ]
                         if release_files:
-                            components.append(f"Releases directory ({len(release_files)} files)")
+                            components.append(
+                                f"Releases directory ({len(release_files)} files)"
+                            )
                     if not bundle_only:
                         components.append("Repository files")
                 print(f"   Components: {', '.join(components)}")
@@ -1627,7 +1761,9 @@ class GitArchiver:
                 secret_key = parsed_ia_config.get("secret")
             except Exception as e:
                 if self.verbose:
-                    print(f"Note: Using default IA credentials (could not parse config: {e})")
+                    print(
+                        f"Note: Using default IA credentials (could not parse config: {e})"
+                    )
 
             # Upload all files at once with proper metadata and verbose output
             upload_kwargs = {
@@ -1649,7 +1785,9 @@ class GitArchiver:
                 print(f"\nUpload completed successfully!")
                 print(f"   Archive URL: https://archive.org/details/{identifier}")
                 if bundle_filename:
-                    print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
+                    print(
+                        f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}"
+                    )
 
             return identifier, metadata
 
@@ -1747,7 +1885,9 @@ class GitArchiver:
             print(f"   Git Provider: {self.repo_data['git_site']}")
 
         # Clone repository
-        repo_path = self.clone_repository(repo_url, all_branches=all_branches, specific_branch=specific_branch)
+        repo_path = self.clone_repository(
+            repo_url, all_branches=all_branches, specific_branch=specific_branch
+        )
 
         # Download releases if requested
         if releases and not bundle_only:
@@ -1794,8 +1934,12 @@ Examples:
     )
 
     parser.add_argument("repo_url", help="Git repository URL to archive")
-    parser.add_argument("--metadata", "-m", help="Custom metadata in format: key1:value1,key2:value2")
-    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress verbose output")
+    parser.add_argument(
+        "--metadata", "-m", help="Custom metadata in format: key1:value1,key2:value2"
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress verbose output"
+    )
     parser.add_argument(
         "--no-update-check",
         action="store_true",
@@ -1811,21 +1955,29 @@ Examples:
         action="store_true",
         help="Skip creating the repository info JSON file",
     )
-    parser.add_argument("--releases", action="store_true", help="Download releases from the repository")
+    parser.add_argument(
+        "--releases", action="store_true", help="Download releases from the repository"
+    )
     parser.add_argument(
         "--all-releases",
         action="store_true",
         help="Download all releases (default: latest only)",
     )
-    parser.add_argument("--all-branches", action="store_true", help="Clone and archive all branches")
-    parser.add_argument("--branch", type=str, help="Clone and archive a specific branch")
+    parser.add_argument(
+        "--all-branches", action="store_true", help="Clone and archive all branches"
+    )
+    parser.add_argument(
+        "--branch", type=str, help="Clone and archive a specific branch"
+    )
     parser.add_argument(
         "--git-provider-type",
         type=str,
         choices=["github", "gitlab", "gitea", "bitbucket"],
         help="Specify the git provider type for self-hosted instances",
     )
-    parser.add_argument("--api-url", type=str, help="Custom API URL for self-hosted instances")
+    parser.add_argument(
+        "--api-url", type=str, help="Custom API URL for self-hosted instances"
+    )
     parser.add_argument(
         "--api-token",
         type=str,
@@ -1836,7 +1988,9 @@ Examples:
         type=str,
         help="Username for Bitbucket App Passwords (used with --api-token for basic auth)",
     )
-    parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version", "-v", action="version", version=f"%(prog)s {__version__}"
+    )
 
     args = parser.parse_args()
 

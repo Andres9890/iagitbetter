@@ -55,7 +55,9 @@ class UtilsTest(unittest.TestCase):
         }
 
         url = self.archiver._build_api_url()
-        self.assertEqual(url, "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-test")
+        self.assertEqual(
+            url, "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-test"
+        )
 
     def test_build_api_url_custom(self):
         """Test building API URL with custom API URL"""
@@ -80,19 +82,25 @@ class UtilsTest(unittest.TestCase):
 
     def test_parse_custom_metadata_multiple_items(self):
         """Test parsing multiple metadata items"""
-        result = self.archiver.parse_custom_metadata("license:MIT,language:Python,year:2021")
+        result = self.archiver.parse_custom_metadata(
+            "license:MIT,language:Python,year:2021"
+        )
         expected = {"license": "MIT", "language": "Python", "year": "2021"}
         self.assertEqual(result, expected)
 
     def test_parse_custom_metadata_with_spaces(self):
         """Test parsing metadata with spaces"""
-        result = self.archiver.parse_custom_metadata(" license : MIT , language : Python ")
+        result = self.archiver.parse_custom_metadata(
+            " license : MIT , language : Python "
+        )
         expected = {"license": "MIT", "language": "Python"}
         self.assertEqual(result, expected)
 
     def test_parse_custom_metadata_with_special_chars(self):
         """Test parsing metadata with special characters in values"""
-        result = self.archiver.parse_custom_metadata("url:https://example.com:8080,path:/usr/local/bin")
+        result = self.archiver.parse_custom_metadata(
+            "url:https://example.com:8080,path:/usr/local/bin"
+        )
         expected = {"url": "https://example.com:8080", "path": "/usr/local/bin"}
         self.assertEqual(result, expected)
 
@@ -107,7 +115,9 @@ class UtilsTest(unittest.TestCase):
             # Create files
             Path(os.path.join(temp_dir, "README.md")).write_text("# Test")
             Path(os.path.join(temp_dir, ".git", "config")).write_text("config")
-            Path(os.path.join(temp_dir, ".github", "workflows", "test.yml")).write_text("test")
+            Path(os.path.join(temp_dir, ".github", "workflows", "test.yml")).write_text(
+                "test"
+            )
             Path(os.path.join(temp_dir, "src", "main.py")).write_text("code")
 
             files = self.archiver.get_all_files(temp_dir)
@@ -176,7 +186,9 @@ It has multiple lines.
         with tempfile.TemporaryDirectory() as temp_dir:
             description = self.archiver.get_description_from_readme(temp_dir)
 
-            self.assertEqual(description, "This git repository doesn't have a README.md file")
+            self.assertEqual(
+                description, "This git repository doesn't have a README.md file"
+            )
 
     def test_handle_remove_readonly_windows(self):
         """Test the Windows readonly file handler"""
@@ -211,6 +223,10 @@ It has multiple lines.
                 continue
 
             result = self.archiver.extract_repo_info(url)
-            self.assertEqual(result["git_site"], expected_site, f"Failed for URL: {url}")
+            self.assertEqual(
+                result["git_site"], expected_site, f"Failed for URL: {url}"
+            )
             self.assertEqual(result["owner"], expected_owner, f"Failed for URL: {url}")
-            self.assertEqual(result["repo_name"], expected_repo, f"Failed for URL: {url}")
+            self.assertEqual(
+                result["repo_name"], expected_repo, f"Failed for URL: {url}"
+            )

@@ -11,7 +11,12 @@ import requests_mock
 from iagitbetter import __version__
 from iagitbetter.iagitbetter import GitArchiver
 
-from .constants import bitbucket_api_response, gitea_api_response, github_api_response, gitlab_api_response
+from .constants import (
+    bitbucket_api_response,
+    gitea_api_response,
+    github_api_response,
+    gitlab_api_response,
+)
 
 current_path = os.path.dirname(os.path.realpath(__file__))
 SCANNER = f"iagitbetter Git Repository Mirroring Application {__version__}"
@@ -34,7 +39,9 @@ def mock_upload_response_by_identifier(m, identifier, files):
 
 def copy_test_repository_to_temp():
     """Copy test repository files to temporary directory"""
-    test_repo_dir = os.path.join(current_path, "test_iagitbetter_files", "test_repository")
+    test_repo_dir = os.path.join(
+        current_path, "test_iagitbetter_files", "test_repository"
+    )
     temp_dir = tempfile.mkdtemp(prefix="iagitbetter_test_")
     repo_path = os.path.join(temp_dir, "test-repo")
     shutil.copytree(test_repo_dir, repo_path)
@@ -119,11 +126,15 @@ class GitArchiverTests(unittest.TestCase):
             "repo_name": "testrepo",
         }
 
-        m.get("https://api.github.com/repos/testuser/testrepo", json=github_api_response)
+        m.get(
+            "https://api.github.com/repos/testuser/testrepo", json=github_api_response
+        )
 
         self.archiver._fetch_api_metadata()
 
-        self.assertEqual(self.archiver.repo_data["description"], "Test repository for iagitbetter")
+        self.assertEqual(
+            self.archiver.repo_data["description"], "Test repository for iagitbetter"
+        )
         self.assertEqual(self.archiver.repo_data["stars"], 42)
         self.assertEqual(self.archiver.repo_data["language"], "Python")
 
@@ -358,9 +369,15 @@ class ProfileArchiverTests(unittest.TestCase):
         self.assertTrue(self.archiver.is_profile_url("https://www.github.com/user"))
 
         # Repository URLs (should return False)
-        self.assertFalse(self.archiver.is_profile_url("https://github.com/torvalds/linux"))
-        self.assertFalse(self.archiver.is_profile_url("https://github.com/user/repo.git"))
-        self.assertFalse(self.archiver.is_profile_url("https://github.com/org/group/repo"))
+        self.assertFalse(
+            self.archiver.is_profile_url("https://github.com/torvalds/linux")
+        )
+        self.assertFalse(
+            self.archiver.is_profile_url("https://github.com/user/repo.git")
+        )
+        self.assertFalse(
+            self.archiver.is_profile_url("https://github.com/org/group/repo")
+        )
 
     def test_is_profile_url_gitlab(self):
         """Test profile URL detection for GitLab"""
@@ -369,8 +386,12 @@ class ProfileArchiverTests(unittest.TestCase):
         self.assertTrue(self.archiver.is_profile_url("https://gitlab.com/username"))
 
         # Repository URLs
-        self.assertFalse(self.archiver.is_profile_url("https://gitlab.com/gitlab-org/gitlab"))
-        self.assertFalse(self.archiver.is_profile_url("https://gitlab.com/group/subgroup/project"))
+        self.assertFalse(
+            self.archiver.is_profile_url("https://gitlab.com/gitlab-org/gitlab")
+        )
+        self.assertFalse(
+            self.archiver.is_profile_url("https://gitlab.com/group/subgroup/project")
+        )
 
     def test_is_profile_url_other_providers(self):
         """Test profile URL detection for other providers"""
@@ -384,11 +405,15 @@ class ProfileArchiverTests(unittest.TestCase):
 
         # Bitbucket
         self.assertTrue(self.archiver.is_profile_url("https://bitbucket.org/workspace"))
-        self.assertFalse(self.archiver.is_profile_url("https://bitbucket.org/team/repo"))
+        self.assertFalse(
+            self.archiver.is_profile_url("https://bitbucket.org/team/repo")
+        )
 
         # Self-hosted
         self.assertTrue(self.archiver.is_profile_url("https://git.example.com/user"))
-        self.assertFalse(self.archiver.is_profile_url("https://git.example.com/user/repo"))
+        self.assertFalse(
+            self.archiver.is_profile_url("https://git.example.com/user/repo")
+        )
 
     @requests_mock.Mocker()
     def test_fetch_github_user_repos(self, m):
@@ -635,7 +660,12 @@ class ProfileArchiverTests(unittest.TestCase):
                     "name": "repo1",
                     "full_name": "testuser/repo1",
                     "links": {
-                        "clone": [{"name": "https", "href": "https://bitbucket.org/testuser/repo1.git"}],
+                        "clone": [
+                            {
+                                "name": "https",
+                                "href": "https://bitbucket.org/testuser/repo1.git",
+                            }
+                        ],
                         "html": {"href": "https://bitbucket.org/testuser/repo1"},
                     },
                     "description": "First repository",
@@ -646,7 +676,12 @@ class ProfileArchiverTests(unittest.TestCase):
                     "name": "repo2",
                     "full_name": "testuser/repo2",
                     "links": {
-                        "clone": [{"name": "https", "href": "https://bitbucket.org/testuser/repo2.git"}],
+                        "clone": [
+                            {
+                                "name": "https",
+                                "href": "https://bitbucket.org/testuser/repo2.git",
+                            }
+                        ],
                         "html": {"href": "https://bitbucket.org/testuser/repo2"},
                     },
                     "description": "Second repository",
@@ -657,7 +692,9 @@ class ProfileArchiverTests(unittest.TestCase):
             "next": None,
         }
 
-        m.get("https://api.bitbucket.org/2.0/repositories/testuser", json=repos_response)
+        m.get(
+            "https://api.bitbucket.org/2.0/repositories/testuser", json=repos_response
+        )
 
         repos = self.archiver.fetch_user_repositories("testuser")
 
@@ -675,7 +712,10 @@ class ProfileArchiverTests(unittest.TestCase):
             "git_site": "github",
         }
 
-        m.get("https://api.github.com/users/emptyuser/repos?per_page=100&page=1&sort=updated", json=[])
+        m.get(
+            "https://api.github.com/users/emptyuser/repos?per_page=100&page=1&sort=updated",
+            json=[],
+        )
 
         repos = self.archiver.fetch_user_repositories("emptyuser")
 
@@ -804,7 +844,10 @@ class ProfileArchiverTests(unittest.TestCase):
 
         # Mock user lookup
         user_response = [{"id": 1, "username": "testuser"}]
-        m.get("https://gitlab.example.com/api/v4/users?username=testuser", json=user_response)
+        m.get(
+            "https://gitlab.example.com/api/v4/users?username=testuser",
+            json=user_response,
+        )
 
         # Mock projects response
         projects_response = [
@@ -853,7 +896,10 @@ class ProfileArchiverTests(unittest.TestCase):
             }
         ]
 
-        m.get("https://git.example.com/api/v1/users/company/repos?limit=50&page=1", json=repos_response)
+        m.get(
+            "https://git.example.com/api/v1/users/company/repos?limit=50&page=1",
+            json=repos_response,
+        )
 
         repos = self.archiver.fetch_user_repositories("company")
 

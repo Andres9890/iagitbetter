@@ -101,7 +101,9 @@ class Mocker:
             headers=kwargs.pop("headers", None),
         )
         if kwargs:
-            raise TypeError(f"Unsupported arguments for mock response: {sorted(kwargs)}")
+            raise TypeError(
+                f"Unsupported arguments for mock response: {sorted(kwargs)}"
+            )
         self._responses[(method.upper(), url)] = response
 
     # -- context manager / decorator plumbing ---------------------------------
@@ -123,7 +125,9 @@ class Mocker:
 
     # -- patched request handler ---------------------------------------------
     def _make_request_handler(self):
-        def handler(session: requests.Session, method: str, url: str, **kwargs: Any) -> _MockResponse:
+        def handler(
+            session: requests.Session, method: str, url: str, **kwargs: Any
+        ) -> _MockResponse:
             key = (method.upper(), url)
             if key not in self._responses:
                 raise AssertionError(f"Unexpected {method.upper()} request to {url}")
