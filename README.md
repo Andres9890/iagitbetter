@@ -21,6 +21,7 @@ iagitbetter is a python tool for archiving any git repository to the [Internet A
 ## Features
 
 - Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and more)
+- Archive all repositories from a user or organization with options
 - Self-hosted git instance support (GitLab, Gitea, Forgejo, etc)
 - Downloads and uploads the entire repository file structure
 - Preserves provider directories like `.github/`, `.gitlab/`, `.gitea/` folders
@@ -57,12 +58,12 @@ You'll be prompted to enter your Internet Archive account's email and password.
 ## Usage
 
 ```bash
-iagitbetter <git_url> [options]
+iagitbetter <git_url_or_profile> [options]
 ```
 
 ### Basic Arguments
 
-- `<git_url>` – Git repository URL to archive (works with any git provider)
+- `<git_url_or_profile>` – Git repository URL or user/organization profile URL to archive
 
 ### Options
 
@@ -83,6 +84,13 @@ iagitbetter <git_url> [options]
 
 - `--all-branches` – clone and archive all branches of the repository
 - `--branch <name>` – clone and archive a specific branch of the repository
+
+### User/Org Archiving Options
+
+- `--skip-forks` – skip forked repositories when archiving profiles
+- `--skip-archived` – skip archived repositories when archiving profiles
+- `--skip-private` – skip private repositories when archiving profiles
+- `--max-repos <number>` – maximum number of repositories to archive from a profile
 
 ### Self-Hosted Instance Options
 
@@ -134,6 +142,87 @@ iagitbetter https://bitbucket.org/user/repository
 
 # Archive from any git provider
 iagitbetter https://git.example.com/user/repository.git
+```
+
+### User/Org Archiving
+
+Archive all repositories from a user or organization profile:
+
+```bash
+# Archive all public repositories from a GitHub user
+iagitbetter https://github.com/torvalds
+
+# Archive all repositories from a GitLab organization
+iagitbetter https://gitlab.com/gitlab-org
+
+# Archive from Codeberg user
+iagitbetter https://codeberg.org/username
+
+# Archive from Gitea user
+iagitbetter https://gitea.com/username
+
+# Archive from Bitbucket workspace
+iagitbetter https://bitbucket.org/atlassian
+```
+
+#### User/Org Archiving with Filters
+
+```bash
+# Skip forked repositories
+iagitbetter https://github.com/username --skip-forks
+
+# Skip archived repositories
+iagitbetter https://github.com/username --skip-archived
+
+# Skip private repositories (useful with API token)
+iagitbetter https://github.com/username --api-token TOKEN --skip-private
+
+# Combine multiple filters
+iagitbetter https://github.com/username --skip-forks --skip-archived
+
+# Limit number of repositories to archive
+iagitbetter https://github.com/username --max-repos 10
+
+# Archive first 5 non-fork repositories
+iagitbetter https://github.com/username --skip-forks --max-repos 5
+```
+
+#### User/Org Archiving with Additional Features
+
+```bash
+# Archive all repos with their releases
+iagitbetter https://github.com/username --releases --all-releases
+
+# Archive all repos with all branches
+iagitbetter https://github.com/username --all-branches
+
+# Combine profile archiving with multiple features
+iagitbetter https://github.com/username --skip-forks --releases --all-branches
+
+# Quiet mode for profile archiving (less verbose output)
+iagitbetter https://github.com/username --skip-forks --quiet
+```
+
+#### Self-Hosted User/Org Archiving
+
+```bash
+# Archive all repos from self-hosted GitLab user
+iagitbetter https://gitlab.example.com/username \
+  --git-provider-type gitlab \
+  --api-token glpat-xxxxxxxxxxxxx
+
+# Archive all repos from self-hosted Gitea organization
+iagitbetter https://git.example.com/organization \
+  --git-provider-type gitea \
+  --api-token your_token_here
+
+# Self-hosted with filters
+iagitbetter https://gitlab.company.com/team \
+  --git-provider-type gitlab \
+  --api-token TOKEN \
+  --skip-forks \
+  --skip-archived \
+  --max-repos 20
 ```
 
 ### Self-Hosted Repositories
@@ -203,6 +292,53 @@ iagitbetter --git-provider-type gitlab \
   --all-branches \
   --releases --all-releases \
   https://gitlab.example.com/user/repo
+```
+
+## Profile Archiving Details
+
+When you provide a user or organization profile URL (e.g., `https://github.com/username`), iagitbetter will:
+
+1. Automatically recognize the URL as a user/org rather than a repository
+2. Query the git provider's API to get all repositories for that user/org
+3. Filter repositories based on the options (`--skip-forks`, `--skip-archived`, etc)
+4. Archive each repository of user/org individually
+5. Provide a summary of what was archived and if there was any failures
+
+### Profile Archiving Output
+
+The tool provides detailed progress information:
+```
+PROFILE ARCHIVING MODE
+Username/Organization: torvalds
+Git Provider: github
+
+Fetching repositories from profile...
+   Found 25 repositories for torvalds
+   Filtered out 5 forked repositories
+   
+Will archive 20 repositories
+
+Repository 1/20: torvalds/linux
+   Repository: torvalds/linux
+   Git Provider: github
+   Will archive: Repository files, Default branch
+...
+Successfully archived: torvalds/linux
+   URL: https://archive.org/details/torvalds-linux-20671005120000
+
+PROFILE ARCHIVING SUMMARY
+Username/Organization: torvalds
+Total repositories found: 25
+Repositories archived: 20
+  Successful: 20
+  Failed: 0
+
+Successfully archived repositories:
+  torvalds/linux
+    https://archive.org/details/torvalds-linux-20241005120000
+  torvalds/subsurface
+    https://archive.org/details/torvalds-subsurface-20241005120100
+  ...
 ```
 
 ## API Token Generation
@@ -292,6 +428,13 @@ If you use the `--bundle-only` flag, only the git bundle will be uploaded.
 3. It attempts to fetch additional metadata from the provider's API (if supported)
 4. Repository information is extracted including owner, name, and provider details
 
+### Profile Analysis (Profile Archiving Mode)
+1. Detects profile URL format (username/org)
+2. Queries the git provider's API to fetch all repositories
+3. Applies filters based on command-line options
+4. Archives each repository individually
+5. Generates summary report
+
 ### Repository Download
 1. The git repository is cloned to a temporary directory using GitPython
 2. If `--all-branches` is specified, all remote branches are fetched and separate directories are created for each non-default branch
@@ -370,6 +513,7 @@ When releases are archived, they can be found in the `{owner}-{repo}_releases/` 
 ## Key Improvements over iagitup
 
 - Works with any git provider (public and self-hosted)
+- Archive all repositories from a user or org
 - Self-hosted git instance support with authentication
 - Uploads the entire repository file structure
 - Preserves provider directories (`.github/`, `.gitlab/`, `.gitea/`)
@@ -402,3 +546,9 @@ When releases are archived, they can be found in the `{owner}-{repo}_releases/` 
 - Always use `--api-token` for private repositories
 - Ensure the token has read access to the repository
 - For self-hosted instances, you may need both `--api-url` and `--api-token`
+
+### Profile Archiving Issues
+- **Rate Limiting**: Public APIs have rate limits (use `--api-token` to increase limits)
+- **Large Profiles**: Use `--max-repos` to limit the number of repositories
+- **Failed Repositories**: Individual repository failures won't stop the entire process
+- **Time Consumption**: Archiving many repositories takes significant time
