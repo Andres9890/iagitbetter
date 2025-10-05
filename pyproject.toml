@@ -12,7 +12,7 @@ authors = [
 ]
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
-keywords = ["git", "archive", "internet-archive", "github", "gitlab", "bitbucket", "repository", "self-hosted", "gitea", "forgejo"]
+keywords = ["git", "archive", "internet-archive", "internetarchive", "github", "gitlab", "bitbucket", "repository", "self-hosted", "gitea", "forgejo"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

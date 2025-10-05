@@ -7,7 +7,7 @@ Improved version with support for all git providers and full file preservation
 
 from . import __version__
 
-__author__ = "iagitbetter"
+__author__ = "Andres99"
 __license__ = "GPL-3.0"
 
 import argparse
@@ -1268,6 +1268,8 @@ class GitArchiver:
                     file_size = os.path.getsize(file_path)
                     if file_size == 0:
                         relative_path = os.path.relpath(file_path, repo_path)
+                        # Normalize to forward slashes for cross-platform
+                        relative_path = relative_path.replace(os.sep, "/")
                         skipped_empty_files.append(relative_path)
                         continue
                 except OSError:
@@ -1276,6 +1278,7 @@ class GitArchiver:
 
                 # Get relative path to preserve directory structure
                 relative_path = os.path.relpath(file_path, repo_path)
+                relative_path = relative_path.replace(os.sep, "/")
 
                 # Rename .svg files to .svg.xml for Internet Archive compatibility
                 if relative_path.lower().endswith(".svg"):
