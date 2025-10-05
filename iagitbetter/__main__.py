@@ -88,7 +88,7 @@ def check_for_updates(current_version, verbose=True):
 
             if latest_parts > current_parts:
                 print(
-                    f"Update available: {latest_version} (current is {current_version})"
+                    f"Update available: {latest_version} (Upgrade with pip install --upgrade iagitbetter)"
                 )
                 print("   Run: pip install --upgrade iagitbetter")
                 print()
