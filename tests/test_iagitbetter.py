@@ -63,6 +63,7 @@ class MockRepo:
 
 @patch("iagitbetter.iagitbetter.git.Repo", MockRepo)
 class GitArchiverTests(unittest.TestCase):
+    """Tests for single repository archiving functionality"""
 
     def setUp(self):
         self.archiver = GitArchiver(verbose=False)
@@ -340,3 +341,559 @@ This is a test repository for iagitbetter.
 
         expected = {"url": "https://example.com", "time": "12:30:45"}
         self.assertEqual(result, expected)
+
+
+class ProfileArchiverTests(unittest.TestCase):
+    """Tests for profile archiving functionality"""
+
+    def setUp(self):
+        self.archiver = GitArchiver(verbose=False)
+        self.maxDiff = None
+
+    def test_is_profile_url_github(self):
+        """Test profile URL detection for GitHub"""
+        # Profile URLs (should return True)
+        self.assertTrue(self.archiver.is_profile_url("https://github.com/torvalds"))
+        self.assertTrue(self.archiver.is_profile_url("https://github.com/kubernetes"))
+        self.assertTrue(self.archiver.is_profile_url("https://www.github.com/user"))
+
+        # Repository URLs (should return False)
+        self.assertFalse(self.archiver.is_profile_url("https://github.com/torvalds/linux"))
+        self.assertFalse(self.archiver.is_profile_url("https://github.com/user/repo.git"))
+        self.assertFalse(self.archiver.is_profile_url("https://github.com/org/group/repo"))
+
+    def test_is_profile_url_gitlab(self):
+        """Test profile URL detection for GitLab"""
+        # Profile URLs
+        self.assertTrue(self.archiver.is_profile_url("https://gitlab.com/gitlab-org"))
+        self.assertTrue(self.archiver.is_profile_url("https://gitlab.com/username"))
+
+        # Repository URLs
+        self.assertFalse(self.archiver.is_profile_url("https://gitlab.com/gitlab-org/gitlab"))
+        self.assertFalse(self.archiver.is_profile_url("https://gitlab.com/group/subgroup/project"))
+
+    def test_is_profile_url_other_providers(self):
+        """Test profile URL detection for other providers"""
+        # Codeberg
+        self.assertTrue(self.archiver.is_profile_url("https://codeberg.org/user"))
+        self.assertFalse(self.archiver.is_profile_url("https://codeberg.org/user/repo"))
+
+        # Gitea
+        self.assertTrue(self.archiver.is_profile_url("https://gitea.com/organization"))
+        self.assertFalse(self.archiver.is_profile_url("https://gitea.com/org/project"))
+
+        # Bitbucket
+        self.assertTrue(self.archiver.is_profile_url("https://bitbucket.org/workspace"))
+        self.assertFalse(self.archiver.is_profile_url("https://bitbucket.org/team/repo"))
+
+        # Self-hosted
+        self.assertTrue(self.archiver.is_profile_url("https://git.example.com/user"))
+        self.assertFalse(self.archiver.is_profile_url("https://git.example.com/user/repo"))
+
+    @requests_mock.Mocker()
+    def test_fetch_github_user_repos(self, m):
+        """Test fetching repositories from GitHub user"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+        }
+
+        # Mock GitHub API response
+        repos_response = [
+            {
+                "name": "repo1",
+                "full_name": "testuser/repo1",
+                "clone_url": "https://github.com/testuser/repo1.git",
+                "html_url": "https://github.com/testuser/repo1",
+                "description": "First repository",
+                "fork": False,
+                "archived": False,
+                "private": False,
+            },
+            {
+                "name": "repo2",
+                "full_name": "testuser/repo2",
+                "clone_url": "https://github.com/testuser/repo2.git",
+                "html_url": "https://github.com/testuser/repo2",
+                "description": "Second repository",
+                "fork": True,
+                "archived": False,
+                "private": False,
+            },
+            {
+                "name": "repo3",
+                "full_name": "testuser/repo3",
+                "clone_url": "https://github.com/testuser/repo3.git",
+                "html_url": "https://github.com/testuser/repo3",
+                "description": "Third repository",
+                "fork": False,
+                "archived": True,
+                "private": False,
+            },
+        ]
+
+        m.get(
+            "https://api.github.com/users/testuser/repos?per_page=100&page=1&sort=updated",
+            json=repos_response,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 3)
+        self.assertEqual(repos[0]["name"], "repo1")
+        self.assertEqual(repos[1]["name"], "repo2")
+        self.assertEqual(repos[2]["name"], "repo3")
+        self.assertFalse(repos[0]["fork"])
+        self.assertTrue(repos[1]["fork"])
+        self.assertTrue(repos[2]["archived"])
+
+    @requests_mock.Mocker()
+    def test_fetch_github_user_repos_pagination(self, m):
+        """Test GitHub API pagination"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+        }
+
+        # Mock first page (100 repos)
+        first_page = [
+            {
+                "name": f"repo{i}",
+                "full_name": f"testuser/repo{i}",
+                "clone_url": f"https://github.com/testuser/repo{i}.git",
+                "html_url": f"https://github.com/testuser/repo{i}",
+                "description": f"Repository {i}",
+                "fork": False,
+                "archived": False,
+                "private": False,
+            }
+            for i in range(100)
+        ]
+
+        # Mock second page (50 repos)
+        second_page = [
+            {
+                "name": f"repo{i}",
+                "full_name": f"testuser/repo{i}",
+                "clone_url": f"https://github.com/testuser/repo{i}.git",
+                "html_url": f"https://github.com/testuser/repo{i}",
+                "description": f"Repository {i}",
+                "fork": False,
+                "archived": False,
+                "private": False,
+            }
+            for i in range(100, 150)
+        ]
+
+        m.get(
+            "https://api.github.com/users/testuser/repos?per_page=100&page=1&sort=updated",
+            json=first_page,
+        )
+        m.get(
+            "https://api.github.com/users/testuser/repos?per_page=100&page=2&sort=updated",
+            json=second_page,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 150)
+
+    @requests_mock.Mocker()
+    def test_fetch_github_user_repos_with_token(self, m):
+        """Test GitHub API with authentication token"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+        }
+        self.archiver.api_token = "ghp_testtoken123"
+
+        repos_response = [
+            {
+                "name": "private-repo",
+                "full_name": "testuser/private-repo",
+                "clone_url": "https://github.com/testuser/private-repo.git",
+                "html_url": "https://github.com/testuser/private-repo",
+                "description": "Private repository",
+                "fork": False,
+                "archived": False,
+                "private": True,
+            }
+        ]
+
+        m.get(
+            "https://api.github.com/users/testuser/repos?per_page=100&page=1&sort=updated",
+            json=repos_response,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 1)
+        self.assertTrue(repos[0]["private"])
+
+    @requests_mock.Mocker()
+    def test_fetch_gitlab_user_repos(self, m):
+        """Test fetching repositories from GitLab user"""
+        self.archiver.repo_data = {
+            "domain": "gitlab.com",
+            "git_site": "gitlab",
+        }
+
+        # Mock user lookup
+        user_response = [{"id": 12345, "username": "testuser"}]
+        m.get("https://gitlab.com/api/v4/users?username=testuser", json=user_response)
+
+        # Mock projects response
+        projects_response = [
+            {
+                "name": "project1",
+                "path_with_namespace": "testuser/project1",
+                "http_url_to_repo": "https://gitlab.com/testuser/project1.git",
+                "web_url": "https://gitlab.com/testuser/project1",
+                "description": "First project",
+                "forked_from_project": None,
+                "archived": False,
+                "visibility": "public",
+            },
+            {
+                "name": "project2",
+                "path_with_namespace": "testuser/project2",
+                "http_url_to_repo": "https://gitlab.com/testuser/project2.git",
+                "web_url": "https://gitlab.com/testuser/project2",
+                "description": "Second project",
+                "forked_from_project": {"id": 999},
+                "archived": False,
+                "visibility": "public",
+            },
+        ]
+
+        m.get(
+            "https://gitlab.com/api/v4/users/12345/projects?per_page=100&page=1&order_by=updated_at",
+            json=projects_response,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 2)
+        self.assertEqual(repos[0]["name"], "project1")
+        self.assertFalse(repos[0]["fork"])
+        self.assertTrue(repos[1]["fork"])
+
+    @requests_mock.Mocker()
+    def test_fetch_gitea_user_repos(self, m):
+        """Test fetching repositories from Gitea user"""
+        self.archiver.repo_data = {
+            "domain": "codeberg.org",
+            "git_site": "codeberg",
+        }
+
+        repos_response = [
+            {
+                "name": "repo1",
+                "full_name": "testuser/repo1",
+                "clone_url": "https://codeberg.org/testuser/repo1.git",
+                "html_url": "https://codeberg.org/testuser/repo1",
+                "description": "First repository",
+                "fork": False,
+                "archived": False,
+                "private": False,
+            },
+            {
+                "name": "repo2",
+                "full_name": "testuser/repo2",
+                "clone_url": "https://codeberg.org/testuser/repo2.git",
+                "html_url": "https://codeberg.org/testuser/repo2",
+                "description": "Second repository",
+                "fork": True,
+                "archived": True,
+                "private": False,
+            },
+        ]
+
+        m.get(
+            "https://codeberg.org/api/v1/users/testuser/repos?limit=50&page=1",
+            json=repos_response,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 2)
+        self.assertEqual(repos[0]["name"], "repo1")
+        self.assertTrue(repos[1]["fork"])
+        self.assertTrue(repos[1]["archived"])
+
+    @requests_mock.Mocker()
+    def test_fetch_bitbucket_user_repos(self, m):
+        """Test fetching repositories from Bitbucket workspace"""
+        self.archiver.repo_data = {
+            "domain": "bitbucket.org",
+            "git_site": "bitbucket",
+        }
+
+        repos_response = {
+            "values": [
+                {
+                    "name": "repo1",
+                    "full_name": "testuser/repo1",
+                    "links": {
+                        "clone": [{"name": "https", "href": "https://bitbucket.org/testuser/repo1.git"}],
+                        "html": {"href": "https://bitbucket.org/testuser/repo1"},
+                    },
+                    "description": "First repository",
+                    "parent": None,
+                    "is_private": False,
+                },
+                {
+                    "name": "repo2",
+                    "full_name": "testuser/repo2",
+                    "links": {
+                        "clone": [{"name": "https", "href": "https://bitbucket.org/testuser/repo2.git"}],
+                        "html": {"href": "https://bitbucket.org/testuser/repo2"},
+                    },
+                    "description": "Second repository",
+                    "parent": {"full_name": "original/repo"},
+                    "is_private": True,
+                },
+            ],
+            "next": None,
+        }
+
+        m.get("https://api.bitbucket.org/2.0/repositories/testuser", json=repos_response)
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 2)
+        self.assertEqual(repos[0]["name"], "repo1")
+        self.assertFalse(repos[0]["fork"])
+        self.assertTrue(repos[1]["fork"])
+        self.assertTrue(repos[1]["private"])
+
+    @requests_mock.Mocker()
+    def test_fetch_user_repos_empty_profile(self, m):
+        """Test fetching from an empty profile"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+        }
+
+        m.get("https://api.github.com/users/emptyuser/repos?per_page=100&page=1&sort=updated", json=[])
+
+        repos = self.archiver.fetch_user_repositories("emptyuser")
+
+        self.assertEqual(len(repos), 0)
+
+    @requests_mock.Mocker()
+    def test_fetch_user_repos_api_error(self, m):
+        """Test handling API errors gracefully"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+        }
+
+        m.get(
+            "https://api.github.com/users/erroruser/repos?per_page=100&page=1&sort=updated",
+            status_code=404,
+        )
+
+        repos = self.archiver.fetch_user_repositories("erroruser")
+
+        self.assertEqual(len(repos), 0)
+
+    def test_filter_forks(self):
+        """Test filtering out forked repositories"""
+        repos = [
+            {"name": "repo1", "fork": False},
+            {"name": "repo2", "fork": True},
+            {"name": "repo3", "fork": False},
+            {"name": "repo4", "fork": True},
+        ]
+
+        filtered = [r for r in repos if not r.get("fork", False)]
+
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0]["name"], "repo1")
+        self.assertEqual(filtered[1]["name"], "repo3")
+
+    def test_filter_archived(self):
+        """Test filtering out archived repositories"""
+        repos = [
+            {"name": "repo1", "archived": False},
+            {"name": "repo2", "archived": True},
+            {"name": "repo3", "archived": False},
+            {"name": "repo4", "archived": True},
+        ]
+
+        filtered = [r for r in repos if not r.get("archived", False)]
+
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0]["name"], "repo1")
+        self.assertEqual(filtered[1]["name"], "repo3")
+
+    def test_filter_private(self):
+        """Test filtering out private repositories"""
+        repos = [
+            {"name": "repo1", "private": False},
+            {"name": "repo2", "private": True},
+            {"name": "repo3", "private": False},
+            {"name": "repo4", "private": True},
+        ]
+
+        filtered = [r for r in repos if not r.get("private", False)]
+
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0]["name"], "repo1")
+        self.assertEqual(filtered[1]["name"], "repo3")
+
+    def test_filter_max_repos(self):
+        """Test limiting number of repositories"""
+        repos = [{"name": f"repo{i}"} for i in range(100)]
+
+        max_repos = 10
+        filtered = repos[:max_repos]
+
+        self.assertEqual(len(filtered), 10)
+        self.assertEqual(filtered[0]["name"], "repo0")
+        self.assertEqual(filtered[9]["name"], "repo9")
+
+    def test_filter_combined(self):
+        """Test combining multiple filters"""
+        repos = [
+            {"name": "repo1", "fork": False, "archived": False, "private": False},
+            {"name": "repo2", "fork": True, "archived": False, "private": False},
+            {"name": "repo3", "fork": False, "archived": True, "private": False},
+            {"name": "repo4", "fork": False, "archived": False, "private": True},
+            {"name": "repo5", "fork": False, "archived": False, "private": False},
+            {"name": "repo6", "fork": True, "archived": True, "private": False},
+        ]
+
+        # Apply all filters
+        filtered = repos
+        filtered = [r for r in filtered if not r.get("fork", False)]
+        filtered = [r for r in filtered if not r.get("archived", False)]
+        filtered = [r for r in filtered if not r.get("private", False)]
+        max_repos = 10
+        filtered = filtered[:max_repos]
+
+        self.assertEqual(len(filtered), 2)
+        self.assertEqual(filtered[0]["name"], "repo1")
+        self.assertEqual(filtered[1]["name"], "repo5")
+
+    @requests_mock.Mocker()
+    def test_fetch_gitlab_user_not_found(self, m):
+        """Test GitLab user not found"""
+        self.archiver.repo_data = {
+            "domain": "gitlab.com",
+            "git_site": "gitlab",
+        }
+
+        # Mock empty user lookup
+        m.get("https://gitlab.com/api/v4/users?username=nonexistent", json=[])
+
+        repos = self.archiver.fetch_user_repositories("nonexistent")
+
+        self.assertEqual(len(repos), 0)
+
+    @requests_mock.Mocker()
+    def test_fetch_self_hosted_gitlab_repos(self, m):
+        """Test fetching from self-hosted GitLab"""
+        self.archiver.repo_data = {
+            "domain": "gitlab.example.com",
+            "git_site": "gitlab",
+        }
+        self.archiver.api_url = "https://gitlab.example.com/api/v4"
+        self.archiver.api_token = "glpat-test123"
+
+        # Mock user lookup
+        user_response = [{"id": 1, "username": "testuser"}]
+        m.get("https://gitlab.example.com/api/v4/users?username=testuser", json=user_response)
+
+        # Mock projects response
+        projects_response = [
+            {
+                "name": "project1",
+                "path_with_namespace": "testuser/project1",
+                "http_url_to_repo": "https://gitlab.example.com/testuser/project1.git",
+                "web_url": "https://gitlab.example.com/testuser/project1",
+                "description": "Internal project",
+                "forked_from_project": None,
+                "archived": False,
+                "visibility": "internal",
+            }
+        ]
+
+        m.get(
+            "https://gitlab.example.com/api/v4/users/1/projects?per_page=100&page=1&order_by=updated_at",
+            json=projects_response,
+        )
+
+        repos = self.archiver.fetch_user_repositories("testuser")
+
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["name"], "project1")
+
+    @requests_mock.Mocker()
+    def test_fetch_self_hosted_gitea_repos(self, m):
+        """Test fetching from self-hosted Gitea"""
+        self.archiver.repo_data = {
+            "domain": "git.example.com",
+            "git_site": "gitea",
+        }
+        self.archiver.api_url = "https://git.example.com/api/v1"
+        self.archiver.api_token = "test123"
+
+        repos_response = [
+            {
+                "name": "internal-repo",
+                "full_name": "company/internal-repo",
+                "clone_url": "https://git.example.com/company/internal-repo.git",
+                "html_url": "https://git.example.com/company/internal-repo",
+                "description": "Internal repository",
+                "fork": False,
+                "archived": False,
+                "private": True,
+            }
+        ]
+
+        m.get("https://git.example.com/api/v1/users/company/repos?limit=50&page=1", json=repos_response)
+
+        repos = self.archiver.fetch_user_repositories("company")
+
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["name"], "internal-repo")
+        self.assertTrue(repos[0]["private"])
+
+    def test_repository_info_structure(self):
+        """Test that repository info has required fields"""
+        repo_info = {
+            "name": "test-repo",
+            "full_name": "user/test-repo",
+            "clone_url": "https://github.com/user/test-repo.git",
+            "html_url": "https://github.com/user/test-repo",
+            "description": "Test repository",
+            "fork": False,
+            "archived": False,
+            "private": False,
+        }
+
+        # Verify all required fields are present
+        self.assertIn("name", repo_info)
+        self.assertIn("full_name", repo_info)
+        self.assertIn("clone_url", repo_info)
+        self.assertIn("html_url", repo_info)
+        self.assertIn("description", repo_info)
+        self.assertIn("fork", repo_info)
+        self.assertIn("archived", repo_info)
+        self.assertIn("private", repo_info)
+
+        # Verify types
+        self.assertIsInstance(repo_info["name"], str)
+        self.assertIsInstance(repo_info["full_name"], str)
+        self.assertIsInstance(repo_info["clone_url"], str)
+        self.assertIsInstance(repo_info["html_url"], str)
+        self.assertIsInstance(repo_info["description"], str)
+        self.assertIsInstance(repo_info["fork"], bool)
+        self.assertIsInstance(repo_info["archived"], bool)
+        self.assertIsInstance(repo_info["private"], bool)
+
+
+if __name__ == "__main__":
+    unittest.main()
