@@ -11,6 +11,7 @@ __author__ = "iagitbetter"
 __license__ = "GPL-3.0"
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -83,6 +84,7 @@ class GitArchiver:
         git_provider_type=None,
         api_url=None,
         api_token=None,
+        api_username=None,  # <-- added for Bitbucket App Passwords
     ):
         self.temp_dir = None
         self.repo_data = {}
@@ -91,6 +93,260 @@ class GitArchiver:
         self.git_provider_type = git_provider_type  # e.g., 'github', 'gitlab', 'gitea'
         self.api_url = api_url  # Custom API URL for self-hosted instances
         self.api_token = api_token  # API token for authentication
+        self.api_username = api_username  # <-- store username for Bitbucket Basic auth
+
+    def is_profile_url(self, url):
+        """Determine if URL is a profile/organization page or a specific repository"""
+        parsed = urlparse(url)
+        path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+
+        # Profile URLs typically have only 1 path component (username/org)
+        # Repository URLs have 2 or more (username/repo, or username/group/repo)
+        return len(path_parts) == 1
+
+    def fetch_user_repositories(self, username):
+        """Fetch all repositories for a given user/organization"""
+        domain = self.repo_data.get("domain", "")
+        site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
+
+        repositories = []
+
+        try:
+            if site == "github" or domain == "github.com":
+                repositories = self._fetch_github_user_repos(username)
+            elif site == "gitlab" or domain == "gitlab.com":
+                repositories = self._fetch_gitlab_user_repos(username)
+            elif site in ["gitea", "codeberg"] or "gitea" in domain or domain == "codeberg.org":
+                repositories = self._fetch_gitea_user_repos(username)
+            elif site == "bitbucket" or domain == "bitbucket.org":
+                repositories = self._fetch_bitbucket_user_repos(username)
+            else:
+                if self.verbose:
+                    print(f"   Profile archiving not supported for {site or domain}")
+                return []
+
+            if self.verbose:
+                print(f"   Found {len(repositories)} repositories for {username}")
+
+            return repositories
+
+        except Exception as e:
+            if self.verbose:
+                print(f"   Error fetching repositories: {e}")
+            return []
+
+    def _fetch_github_user_repos(self, username):
+        """Fetch all repositories from GitHub user/org (supports org repos)"""
+        repos = []
+        page = 1
+        per_page = 100
+
+        # Detect whether the name is a User or an Organization
+        who_url = f"https://api.github.com/users/{username}"
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"token {self.api_token}"
+
+        entity_type = "User"
+        try:
+            who_resp = requests.get(who_url, headers=headers, timeout=10)
+            if who_resp.status_code == 200:
+                entity_type = who_resp.json().get("type", "User")
+        except Exception:
+            pass
+
+        # Choose the correct listing endpoint
+        # Users: /users/{username}/repos
+        # Orgs:  /orgs/{org}/repos
+        base_list_path = (
+            f"https://api.github.com/orgs/{username}/repos"
+            if entity_type == "Organization"
+            else f"https://api.github.com/users/{username}/repos"
+        )
+
+        while True:
+            url = f"{base_list_path}?per_page={per_page}&page={page}&sort=updated"
+            list_headers = {}
+            if self.api_token:
+                list_headers["Authorization"] = f"token {self.api_token}"
+
+            response = requests.get(url, headers=list_headers, timeout=10)
+            if response.status_code == 200:
+                page_repos = response.json()
+                if not page_repos:
+                    break
+
+                for repo in page_repos:
+                    repos.append(
+                        {
+                            "name": repo["name"],
+                            "full_name": repo["full_name"],
+                            "clone_url": repo["clone_url"],
+                            "html_url": repo["html_url"],
+                            "description": repo.get("description", ""),
+                            "fork": repo.get("fork", False),
+                            "archived": repo.get("archived", False),
+                            "private": repo.get("private", False),
+                        }
+                    )
+
+                if len(page_repos) < per_page:
+                    break
+                page += 1
+            else:
+                if self.verbose:
+                    print(f"   Error fetching GitHub repos (status {response.status_code})")
+                break
+
+        return repos
+
+    def _fetch_gitlab_user_repos(self, username):
+        """Fetch all repositories from GitLab user/org"""
+        repos = []
+        page = 1
+        per_page = 100
+
+        # First, try to get user ID
+        base_url = self.api_url if self.api_url else f"https://{self.repo_data.get('domain', 'gitlab.com')}/api/v4"
+        headers = {}
+        if self.api_token:
+            headers["PRIVATE-TOKEN"] = self.api_token
+
+        # Get user info to find user ID
+        user_url = f"{base_url}/users?username={username}"
+        response = requests.get(user_url, headers=headers, timeout=10)
+
+        if response.status_code != 200 or not response.json():
+            if self.verbose:
+                print(f"   Could not find GitLab user: {username}")
+            return []
+
+        user_id = response.json()[0]["id"]
+
+        # Fetch user's projects
+        while True:
+            url = f"{base_url}/users/{user_id}/projects?per_page={per_page}&page={page}&order_by=updated_at"
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                page_repos = response.json()
+                if not page_repos:
+                    break
+
+                for repo in page_repos:
+                    repos.append(
+                        {
+                            "name": repo["name"],
+                            "full_name": repo["path_with_namespace"],
+                            "clone_url": repo["http_url_to_repo"],
+                            "html_url": repo["web_url"],
+                            "description": repo.get("description", ""),
+                            "fork": repo.get("forked_from_project") is not None,
+                            "archived": repo.get("archived", False),
+                            "private": repo.get("visibility") != "public",
+                        }
+                    )
+
+                if len(page_repos) < per_page:
+                    break
+                page += 1
+            else:
+                break
+
+        return repos
+
+    def _fetch_gitea_user_repos(self, username):
+        """Fetch all repositories from Gitea/Forgejo/Codeberg user/org"""
+        repos = []
+        page = 1
+        per_page = 50
+
+        base_url = self.api_url if self.api_url else f"https://{self.repo_data.get('domain', 'gitea.com')}/api/v1"
+        headers = {}
+        if self.api_token:
+            headers["Authorization"] = f"token {self.api_token}"
+
+        while True:
+            url = f"{base_url}/users/{username}/repos?limit={per_page}&page={page}"
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                page_repos = response.json()
+                if not page_repos:
+                    break
+
+                for repo in page_repos:
+                    repos.append(
+                        {
+                            "name": repo["name"],
+                            "full_name": repo["full_name"],
+                            "clone_url": repo["clone_url"],
+                            "html_url": repo["html_url"],
+                            "description": repo.get("description", ""),
+                            "fork": repo.get("fork", False),
+                            "archived": repo.get("archived", False),
+                            "private": repo.get("private", False),
+                        }
+                    )
+
+                if len(page_repos) < per_page:
+                    break
+                page += 1
+            else:
+                break
+
+        return repos
+
+    def _bitbucket_auth_headers(self):
+        """Build Bitbucket auth headers supporting App Passwords (Basic) or OAuth (Bearer)."""
+        # App Passwords: requires username + app password via basic auth
+        if self.api_username and self.api_token:
+            token = base64.b64encode(f"{self.api_username}:{self.api_token}".encode("utf-8")).decode("utf-8")
+            return {"Authorization": f"Basic {token}"}
+        # OAuth 2 access token: Bearer
+        if self.api_token:
+            return {"Authorization": f"Bearer {self.api_token}"}
+        return {}
+
+    def _fetch_bitbucket_user_repos(self, username):
+        """Fetch all repositories from Bitbucket user/workspace"""
+        repos = []
+        url = f"https://api.bitbucket.org/2.0/repositories/{username}"
+
+        headers = self._bitbucket_auth_headers()
+
+        while url:
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                for repo in data.get("values", []):
+                    clone_url = None
+                    for link in repo.get("links", {}).get("clone", []):
+                        if link.get("name") == "https":
+                            clone_url = link.get("href")
+                            break
+
+                    repos.append(
+                        {
+                            "name": repo["name"],
+                            "full_name": repo["full_name"],
+                            "clone_url": clone_url or "",
+                            "html_url": repo.get("links", {}).get("html", {}).get("href", ""),
+                            "description": repo.get("description", ""),
+                            "fork": repo.get("parent") is not None,
+                            "archived": False,  # Bitbucket doesn't have archived status in API
+                            "private": repo.get("is_private", False),
+                        }
+                    )
+
+                # Get next page
+                url = data.get("next")
+            else:
+                break
+
+        return repos
 
     def extract_repo_info(self, repo_url):
         """Extract repository information from any git URL"""
@@ -195,6 +451,8 @@ class GitArchiver:
                     headers["Authorization"] = f"token {self.api_token}"
                 elif site == "gitlab":
                     headers["PRIVATE-TOKEN"] = self.api_token
+                elif site == "bitbucket":
+                    headers.update(self._bitbucket_auth_headers())
                 else:
                     # Gitea/Forgejo generally accept 'token', some accept Bearer too
                     headers["Authorization"] = f"token {self.api_token}"
@@ -1570,6 +1828,11 @@ Examples:
         type=str,
         help="API token for authentication with private/self-hosted repositories",
     )
+    parser.add_argument(
+        "--api-username",
+        type=str,
+        help="Username for Bitbucket App Passwords (used with --api-token for basic auth)",
+    )
     parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -1585,6 +1848,7 @@ Examples:
         git_provider_type=args.git_provider_type,
         api_url=args.api_url,
         api_token=args.api_token,
+        api_username=args.api_username,  # <-- pass through for Bitbucket basic auth
     )
     try:
         identifier, metadata = archiver.run(
