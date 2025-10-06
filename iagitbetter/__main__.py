@@ -178,7 +178,7 @@ Key improvements over iagitup:
     parser.add_argument(
         "--bundle-only",
         action="store_true",
-        help="only upload git bundle, not all files (iagitup compatibility mode)",
+        help="only upload git bundle, not repository files (can be combined with --releases)",
     )
     parser.add_argument(
         "--no-update-check",
@@ -299,7 +299,12 @@ def archive_single_repository(archiver, url, args, verbose):
             # Show what will be archived
             archive_components = []
             if args.bundle_only:
-                archive_components.append("Git bundle only")
+                archive_components.append("Git bundle")
+                if args.releases:
+                    if args.all_releases:
+                        archive_components.append("All releases")
+                    else:
+                        archive_components.append("Latest release")
             else:
                 archive_components.append("Repository files")
                 if args.all_branches:
@@ -325,8 +330,8 @@ def archive_single_repository(archiver, url, args, verbose):
             url, all_branches=args.all_branches, specific_branch=args.branch
         )
 
-        # Download releases if requested (skip for bundle-only mode)
-        if args.releases and not args.bundle_only:
+        # Download releases if requested
+        if args.releases:
             if verbose:
                 print("Downloading releases...")
             archiver.download_releases(repo_path, all_releases=args.all_releases)
@@ -335,7 +340,7 @@ def archive_single_repository(archiver, url, args, verbose):
         identifier, metadata = archiver.upload_to_ia(
             repo_path,
             custom_metadata=archiver.parse_custom_metadata(args.metadata),
-            includes_releases=args.releases and not args.bundle_only,
+            includes_releases=args.releases,
             includes_all_branches=args.all_branches,
             specific_branch=args.branch,
             bundle_only=args.bundle_only,
@@ -612,6 +617,19 @@ def main(argv=None):
                 # Show what was archived
                 if args.bundle_only:
                     print("Archive mode: Bundle only")
+                    if args.releases:
+                        release_count = archiver.repo_data.get("downloaded_releases", 0)
+                        releases_dir = archiver.repo_data.get(
+                            "releases_dir_name", "releases"
+                        )
+                        if args.all_releases:
+                            print(
+                                f"Releases: {release_count} releases archived in {releases_dir}/"
+                            )
+                        else:
+                            print(
+                                f"Releases: Latest release archived in {releases_dir}/"
+                            )
                 else:
                     if args.all_branches:
                         branch_count = archiver.repo_data.get("branch_count", 0)

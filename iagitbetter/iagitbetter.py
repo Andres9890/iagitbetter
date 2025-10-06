@@ -1602,7 +1602,7 @@ class GitArchiver:
             metadata["bundleonly"] = "true"
 
         # Add release information - only when releases are actually included
-        if includes_releases and not bundle_only:
+        if includes_releases:
             metadata["includesreleases"] = "true"
             metadata["releasecount"] = str(self.repo_data.get("downloaded_releases", 0))
 
@@ -1691,10 +1691,26 @@ class GitArchiver:
                 repo_files = self.get_all_files(repo_path)
                 # Add all repository files with preserved directory structure
                 files_to_upload.update(repo_files)
+            else:
+                if includes_releases and self.repo_data.get("releases_dir_name"):
+                    releases_dir_name = self.repo_data["releases_dir_name"]
+                    releases_path = os.path.join(repo_path, releases_dir_name)
+                    if os.path.exists(releases_path):
+                        if self.verbose:
+                            print(f"Including releases directory in bundle-only upload: {releases_dir_name}/")
+                        # Get all files in the releases directory
+                        for root, dirs, files in os.walk(releases_path):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                relative_path = os.path.relpath(file_path, repo_path)
+                                relative_path = relative_path.replace(os.sep, "/")
+                                files_to_upload[relative_path] = file_path
 
             if self.verbose:
                 if bundle_only:
-                    print("Uploading git bundle only to Internet Archive")
+                    print("Uploading git bundle to Internet Archive")
+                    if includes_releases:
+                        print("   (including releases directory)")
                 else:
                     print(f"Uploading {len(files_to_upload)} files to Internet Archive")
                 print(
@@ -1749,6 +1765,18 @@ class GitArchiver:
                             )
                     if not bundle_only:
                         components.append("Repository files")
+               else:
+                    if includes_releases and self.repo_data.get("releases_dir_name"):
+                        release_files = [
+                            f
+                            for f in files_to_upload.keys()
+                            if f.startswith(self.repo_data["releases_dir_name"])
+                        ]
+                        if release_files:
+                            components.append(
+                                f"Releases directory ({len(release_files)} files)"
+                            )
+
                 print(f"   Components: {', '.join(components)}")
 
             # Parse internetarchive configuration file to get credentials
@@ -1890,14 +1918,14 @@ class GitArchiver:
         )
 
         # Download releases if requested
-        if releases and not bundle_only:
+        if releases:
             self.download_releases(repo_path, all_releases=all_releases)
 
         # Upload to Internet Archive
         identifier, metadata = self.upload_to_ia(
             repo_path,
             custom_metadata,
-            includes_releases=releases and not bundle_only,
+            includes_releases=releases,
             includes_all_branches=all_branches,
             specific_branch=specific_branch,
             bundle_only=bundle_only,
