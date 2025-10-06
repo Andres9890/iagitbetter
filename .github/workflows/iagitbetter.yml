@@ -8,7 +8,7 @@ on:
         required: true
         default: 'https://github.com/'
       args:
-        description: 'Command arguments for iagitbetter (--all-branches --releases --all-releases)'
+        description: 'Command arguments for iagitbetter (--bundle-only --all-branches --releases --all-releases)'
         required: false
 
 jobs:
