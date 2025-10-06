@@ -1765,7 +1765,7 @@ class GitArchiver:
                             )
                     if not bundle_only:
                         components.append("Repository files")
-               else:
+                    else:
                     if includes_releases and self.repo_data.get("releases_dir_name"):
                         release_files = [
                             f
