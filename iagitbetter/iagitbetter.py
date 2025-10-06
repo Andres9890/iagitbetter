@@ -1766,16 +1766,16 @@ class GitArchiver:
                     if not bundle_only:
                         components.append("Repository files")
                     else:
-                    if includes_releases and self.repo_data.get("releases_dir_name"):
-                        release_files = [
-                            f
-                            for f in files_to_upload.keys()
-                            if f.startswith(self.repo_data["releases_dir_name"])
-                        ]
-                        if release_files:
-                            components.append(
-                                f"Releases directory ({len(release_files)} files)"
-                            )
+                        if includes_releases and self.repo_data.get("releases_dir_name"):
+                            release_files = [
+                                f
+                                for f in files_to_upload.keys()
+                                if f.startswith(self.repo_data["releases_dir_name"])
+                            ]
+                            if release_files:
+                                components.append(
+                                    f"Releases directory ({len(release_files)} files)"
+                                )
 
                 print(f"   Components: {', '.join(components)}")
 
