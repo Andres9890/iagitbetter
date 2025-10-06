@@ -1697,7 +1697,9 @@ class GitArchiver:
                     releases_path = os.path.join(repo_path, releases_dir_name)
                     if os.path.exists(releases_path):
                         if self.verbose:
-                            print(f"Including releases directory in bundle-only upload: {releases_dir_name}/")
+                            print(
+                                f"Including releases directory in bundle-only upload: {releases_dir_name}/"
+                            )
                         # Get all files in the releases directory
                         for root, dirs, files in os.walk(releases_path):
                             for file in files:
@@ -1766,7 +1768,9 @@ class GitArchiver:
                     if not bundle_only:
                         components.append("Repository files")
                     else:
-                        if includes_releases and self.repo_data.get("releases_dir_name"):
+                        if includes_releases and self.repo_data.get(
+                            "releases_dir_name"
+                        ):
                             release_files = [
                                 f
                                 for f in files_to_upload.keys()
