@@ -1413,7 +1413,9 @@ class GitArchiver:
 
         # Log information about renamed SVG files
         if renamed_svg_files and self.verbose:
-            print(f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
+            print(
+                f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
+            )
             for svg_file in renamed_svg_files[:5]:
                 print(f"     - {svg_file} → {svg_file}.xml")
             if len(renamed_svg_files) > 5:
@@ -1421,7 +1423,9 @@ class GitArchiver:
 
         # Log information about renamed BMP files
         if renamed_bmp_files and self.verbose:
-            print(f"   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:")
+            print(
+                f"   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:"
+            )
             for bmp_file in renamed_bmp_files[:5]:
                 print(f"     - {bmp_file} → {bmp_file}.bin")
             if len(renamed_bmp_files) > 5:
