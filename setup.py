@@ -54,6 +54,7 @@ setup(
         "internetarchive>=5.5.1",
         "GitPython>=3.1.45",
         "markdown2>=2.5.4",
+        "docutils>=0.22.2",
     ],
     extras_require={
         "dev": [

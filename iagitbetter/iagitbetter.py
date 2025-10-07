@@ -1434,27 +1434,63 @@ class GitArchiver:
         return files_to_upload
 
     def get_description_from_readme(self, repo_path):
-        """Get HTML description from README.md using the same method as iagitup"""
-        readme_paths = [
+        """Get HTML description from README.md, README.rst, or README.txt"""
+        # Try README.md
+        readme_md_paths = [
             os.path.join(repo_path, "README.md"),
             os.path.join(repo_path, "readme.md"),
             os.path.join(repo_path, "Readme.md"),
             os.path.join(repo_path, "README.MD"),
         ]
 
-        for path in readme_paths:
+        for path in readme_md_paths:
             if os.path.exists(path):
                 try:
-                    # Use markdown2 to convert to HTML like iagitup does
+                    # Use markdown2 to convert to HTML
                     description = markdown_path(path)
-                    # Preserve line breaks for readability (do not flatten)
                     return description
                 except Exception as e:
                     if self.verbose:
                         print(f"Could not parse README.md: {e}")
-                    return "This git repository doesn't have a README.md file"
 
-        # Fallback for other readme formats
+        # Try README.rst
+        readme_rst_paths = [
+            os.path.join(repo_path, "README.rst"),
+            os.path.join(repo_path, "readme.rst"),
+            os.path.join(repo_path, "Readme.rst"),
+            os.path.join(repo_path, "README.RST"),
+        ]
+
+        for path in readme_rst_paths:
+            if os.path.exists(path):
+                try:
+                    # Import docutils for RST parsing
+                    from docutils.core import publish_parts
+
+                    with open(path, "r", encoding="utf-8") as f:
+                        rst_content = f.read()
+
+                    # Convert RST to HTML
+                    parts = publish_parts(
+                        rst_content,
+                        writer_name="html",
+                        settings_overrides={
+                            "initial_header_level": 1,
+                            "report_level": 5,  # Suppress warnings
+                            "halt_level": 5,
+                        },
+                    )
+                    # Return only the body content without the full HTML structure
+                    description = parts["body"]
+                    return description
+                except ImportError:
+                    if self.verbose:
+                        print("   docutils not available, cannot parse README.rst")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"   Could not parse README.rst: {e}")
+
+        # Fallback to README.txt
         txt_paths = [
             os.path.join(repo_path, "README.txt"),
             os.path.join(repo_path, "readme.txt"),

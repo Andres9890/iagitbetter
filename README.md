@@ -506,8 +506,8 @@ git checkout branch-name
 When releases are archived, they can be found in the `{owner}-{repo}_releases/` directory of the archive, Each release includes:
 
 - `{version}.info.json` - Complete release metadata
-- `{version}-source.zip` - Source code archive
-- `{version}-source.tar.gz` - Source code tarball
+- `{version}.source.zip` - Source code archive
+- `{version}.source.tar.gz` - Source code tarball
 - binaries
 
 ## Key Improvements over iagitup
@@ -548,7 +548,7 @@ When releases are archived, they can be found in the `{owner}-{repo}_releases/` 
 - For self-hosted instances, you may need both `--api-url` and `--api-token`
 
 ### Profile Archiving Issues
-- **Rate Limiting**: Public APIs have rate limits (use `--api-token` to increase limits)
-- **Large Profiles**: Use `--max-repos` to limit the number of repositories
-- **Failed Repositories**: Individual repository failures won't stop the entire process
-- **Time Consumption**: Archiving many repositories takes significant time
+- Rate Limiting: Public APIs have rate limits (use `--api-token` to increase limits)
+- Large Profiles: Use `--max-repos` to limit the number of repositories
+- Failed Repositories: Individual repository failures won't stop the entire process
+- Time Consumption: Archiving many repositories takes significant time
