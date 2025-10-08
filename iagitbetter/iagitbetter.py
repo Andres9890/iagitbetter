@@ -1434,7 +1434,7 @@ class GitArchiver:
         return files_to_upload
 
     def get_description_from_readme(self, repo_path):
-        """Get HTML description from README.md, README.rst, or README.txt"""
+        """Get HTML description from README.md, or README.rst, or README.txt"""
         # Try README.md
         readme_md_paths = [
             os.path.join(repo_path, "README.md"),
@@ -1593,6 +1593,7 @@ class GitArchiver:
         subject_tags = [
             "git",
             "code",
+            "software",
             self.repo_data["git_site"],
             "repository",
             "repo",
