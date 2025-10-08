@@ -1357,11 +1357,13 @@ class GitArchiver:
             return None
 
     def get_all_files(self, repo_path):
-        """Get all files in the repository, preserving directory structure."""
+        """Get all files in the repository, preserving directory structure and filtering corrupted files."""
         files_to_upload = {}
         skipped_empty_files = []
+        skipped_corrupted_files = []
+        skipped_unreadable_files = []
         renamed_svg_files = []
-        renamed_bmp_files = []  # Add this
+        renamed_bmp_files = []
 
         for root, dirs, files in os.walk(repo_path):
             # Only skip the .git directory itself, not .github or similar folders
@@ -1374,21 +1376,56 @@ class GitArchiver:
 
             for file in files:
                 file_path = os.path.join(root, file)
-
-                # Check if file is empty (0 bytes) and skip it
-                try:
-                    file_size = os.path.getsize(file_path)
-                    if file_size == 0:
-                        relative_path = os.path.relpath(file_path, repo_path)
-                        relative_path = relative_path.replace(os.sep, "/")
-                        skipped_empty_files.append(relative_path)
-                        continue
-                except OSError:
-                    continue
-
-                # Get relative path to preserve directory structure
                 relative_path = os.path.relpath(file_path, repo_path)
                 relative_path = relative_path.replace(os.sep, "/")
+
+                # Check if file exists and is accessible
+                if not os.path.exists(file_path):
+                    skipped_corrupted_files.append(
+                        (relative_path, "File does not exist")
+                    )
+                    continue
+
+                # Check if file is a symbolic link (skip broken symlinks)
+                if os.path.islink(file_path):
+                    if not os.path.exists(os.path.realpath(file_path)):
+                        skipped_corrupted_files.append(
+                            (relative_path, "Broken symbolic link")
+                        )
+                        continue
+
+                # Check file size and readability
+                try:
+                    file_size = os.path.getsize(file_path)
+
+                    # Skip empty files (0 bytes)
+                    if file_size == 0:
+                        skipped_empty_files.append(relative_path)
+                        continue
+
+                    # Try to read first few bytes to verify file is readable
+                    with open(file_path, "rb") as f:
+                        try:
+                            f.read(1024)  # Try reading first 1KB
+                        except (IOError, OSError) as e:
+                            skipped_unreadable_files.append((relative_path, str(e)))
+                            continue
+
+                except OSError as e:
+                    skipped_corrupted_files.append(
+                        (relative_path, f"OS error: {str(e)}")
+                    )
+                    continue
+                except PermissionError as e:
+                    skipped_unreadable_files.append(
+                        (relative_path, f"Permission denied: {str(e)}")
+                    )
+                    continue
+                except Exception as e:
+                    skipped_corrupted_files.append(
+                        (relative_path, f"Unexpected error: {str(e)}")
+                    )
+                    continue
 
                 # Rename .svg files to .svg.xml for Internet Archive compatibility
                 if relative_path.lower().endswith(".svg"):
@@ -1403,33 +1440,72 @@ class GitArchiver:
 
                 files_to_upload[upload_name] = file_path
 
-        # Log information about skipped empty files
-        if skipped_empty_files and self.verbose:
-            print(f"   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):")
-            for empty_file in skipped_empty_files[:5]:
-                print(f"     - {empty_file}")
-            if len(skipped_empty_files) > 5:
-                print(f"     ... and {len(skipped_empty_files) - 5} more")
-
-        # Log information about renamed SVG files
-        if renamed_svg_files and self.verbose:
-            print(
-                f"   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
+        # Log information about skipped files
+        if self.verbose:
+            total_skipped = (
+                len(skipped_empty_files)
+                + len(skipped_corrupted_files)
+                + len(skipped_unreadable_files)
             )
-            for svg_file in renamed_svg_files[:5]:
-                print(f"     - {svg_file} → {svg_file}.xml")
-            if len(renamed_svg_files) > 5:
-                print(f"     ... and {len(renamed_svg_files) - 5} more")
 
-        # Log information about renamed BMP files
-        if renamed_bmp_files and self.verbose:
-            print(
-                f"   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:"
-            )
-            for bmp_file in renamed_bmp_files[:5]:
-                print(f"     - {bmp_file} → {bmp_file}.bin")
-            if len(renamed_bmp_files) > 5:
-                print(f"     ... and {len(renamed_bmp_files) - 5} more")
+            if total_skipped > 0:
+                print(f"\n   File filtering summary:")
+                print(f"   Total files found: {len(files_to_upload) + total_skipped}")
+                print(f"   Files to upload: {len(files_to_upload)}")
+                print(f"   Files skipped: {total_skipped}")
+
+            if skipped_empty_files:
+                print(
+                    f"\n   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):"
+                )
+                for empty_file in skipped_empty_files[:5]:
+                    print(f"     - {empty_file}")
+                if len(skipped_empty_files) > 5:
+                    print(f"     ... and {len(skipped_empty_files) - 5} more")
+
+            if skipped_corrupted_files:
+                print(
+                    f"\n   Skipping {len(skipped_corrupted_files)} corrupted/problematic file(s):"
+                )
+                for corrupted_file, reason in skipped_corrupted_files[:5]:
+                    print(f"     - {corrupted_file}: {reason}")
+                if len(skipped_corrupted_files) > 5:
+                    print(f"     ... and {len(skipped_corrupted_files) - 5} more")
+
+            if skipped_unreadable_files:
+                print(
+                    f"\n   Skipping {len(skipped_unreadable_files)} unreadable file(s):"
+                )
+                for unreadable_file, reason in skipped_unreadable_files[:5]:
+                    print(f"     - {unreadable_file}: {reason}")
+                if len(skipped_unreadable_files) > 5:
+                    print(f"     ... and {len(skipped_unreadable_files) - 5} more")
+
+            if renamed_svg_files:
+                print(
+                    f"\n   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
+                )
+                for svg_file in renamed_svg_files[:5]:
+                    print(f"     - {svg_file} → {svg_file}.xml")
+                if len(renamed_svg_files) > 5:
+                    print(f"     ... and {len(renamed_svg_files) - 5} more")
+
+            if renamed_bmp_files:
+                print(
+                    f"\n   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:"
+                )
+                for bmp_file in renamed_bmp_files[:5]:
+                    print(f"     - {bmp_file} → {bmp_file}.bin")
+                if len(renamed_bmp_files) > 5:
+                    print(f"     ... and {len(renamed_bmp_files) - 5} more")
+
+        # Store skip statistics in repo_data for later reference
+        self.repo_data["skipped_files"] = {
+            "empty": len(skipped_empty_files),
+            "corrupted": len(skipped_corrupted_files),
+            "unreadable": len(skipped_unreadable_files),
+            "total": total_skipped if "total_skipped" in locals() else 0,
+        }
 
         return files_to_upload
 
