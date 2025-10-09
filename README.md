@@ -20,9 +20,9 @@ iagitbetter is a python tool for archiving any git repository to the [Internet A
 
 ## Features
 
-- Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, and more)
+- Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, Gitee, Gogs, SourceForge, and more)
 - Archive all repositories from a user or organization with options
-- Self-hosted git instance support (GitLab, Gitea, Forgejo, etc)
+- Self-hosted git instance support (GitLab, Gitea, Forgejo, Gogs, Gerrit, etc)
 - Downloads and uploads the entire repository file structure
 - Preserves provider directories like `.github/`, `.gitlab/`, `.gitea/` folders
 - Download repository releases with assets from supported providers
@@ -94,7 +94,7 @@ iagitbetter <git_url_or_profile> [options]
 
 ### Self-Hosted Instance Options
 
-- `--git-provider-type {github,gitlab,gitea,bitbucket}` – specify the git provider type for self-hosted instances
+- `--git-provider-type {github,gitlab,gitea,bitbucket,gogs,gitee,gerrit,sourceforge,launchpad}` – specify the git provider type for self-hosted instances
 - `--api-url <url>` – custom API URL for self-hosted instances (e.g., `https://git.example.com/api/v1`)
 - `--api-token <token>` – API token for authentication with private/self-hosted repositories
 
@@ -119,7 +119,7 @@ For supported providers, iagitbetter automatically fetches:
 
 ### Release Support
 
-For providers that support releases (GitHub, GitLab, Codeberg, Gitea), iagitbetter can:
+For providers that support releases (GitHub, GitLab, Codeberg, Gitea, Gitee, Gogs, SourceForge), iagitbetter can:
 - Download the latest release or all releases
 - Include release assets and attachments
 - Download source code archives (zip/tar.gz)
@@ -142,6 +142,15 @@ iagitbetter https://bitbucket.org/user/repository
 
 # Archive from any git provider
 iagitbetter https://git.example.com/user/repository.git
+
+# Archive from Gitee
+iagitbetter https://gitee.com/user/repository
+
+# Archive from Gogs instance
+iagitbetter --git-provider-type gogs https://gogs.example.com/user/repository
+
+# Archive from SourceForge (Git repos only)
+iagitbetter https://sourceforge.net/p/project/dog/
 ```
 
 ### User/Org Archiving
@@ -357,6 +366,21 @@ Successfully archived repositories:
 1. Go to Settings → Applications → Generate New Token
 2. Select `read:repository` permission
 3. Use with `--api-token ...`
+
+### Gitee
+1. Go to Settings → Private Tokens → Generate New Token
+2. Select repository access scopes
+3. Use with `--api-token ...`
+
+### Gogs
+1. Go to Settings → Applications → Generate New Token
+2. This is experimental API support
+3. Use with `--api-token ...`
+
+### SourceForge
+1. Go to https://sourceforge.net/auth/oauth/
+2. Generate OAuth bearer token
+3. Use with `--api-token BEARER_TOKEN`
 
 ## Repository Structure Preservation
 

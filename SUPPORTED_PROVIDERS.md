@@ -382,6 +382,8 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 
 ## Provider Comparison Table
 
+### Fully Supported Providers
+
 | Provider | Metadata | Releases | Avatar | Self-Hosted | Notes |
 |----------|----------|----------|--------|-------------|-------|
 | GitHub | ✅ | ✅ | ✅ | ✅ | Full support |
@@ -390,7 +392,17 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 | Gitea | ✅ | ✅ | ✅ | ✅ | Full support |
 | Forgejo | ✅ | ✅ | ✅ | ✅ | Use Gitea mode |
 | Bitbucket | ✅ | ⚠️ | ✅ | N/A | Limited releases |
-| Generic | ❌ | ❌ | ❌ | ✅ | Basic archiving only |
+
+### Experimental / New Providers
+
+| Provider | Metadata | Releases | Avatar | Self-Hosted | Notes |
+|----------|----------|----------|--------|-------------|-------|
+| Gitee | ✅ | ✅ | ✅ | ❌ | China's largest platform |
+| Gogs | ✅ | ✅ | ✅ | ✅ | Experimental API |
+| Notabug | ✅ | ✅ | ✅ | N/A | Uses Gogs |
+| SourceForge | ⚠️ | ✅ | ❌ | N/A | Git repos only |
+| Launchpad | ⚠️ | ❌ | ❌ | N/A | Primarily Bazaar |
+| Gerrit | ⚠️ | ❌ | ❌ | ✅ | Code review focused |
 
 ---
 
@@ -441,6 +453,166 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 
 ---
 
+## Experimental / New Providers
+
+### Gitee (gitee.com)
+**Support Level:** 🟢 Full Support (Experimental)
+
+Gitee is China's largest code hosting platform with full API support
+
+#### Features
+- ✅ Metadata fetching
+- ✅ Release downloading (API v5)
+- ✅ Avatar downloading
+- ✅ Topics and tags
+- ✅ Stars and forks count
+- ✅ User/organization archiving
+
+#### Usage
+```bash
+# Public repository
+iagitbetter https://gitee.com/user/repository
+
+# With API token
+iagitbetter --git-provider-type gitee --api-token TOKEN https://gitee.com/user/repository
+```
+
+#### API Documentation
+- Base: `https://gitee.com/api/v5`
+- Repository: `https://gitee.com/api/v5/repos/{owner}/{repo}`
+- Releases: `https://gitee.com/api/v5/repos/{owner}/{repo}/releases`
+- Swagger Docs: https://gitee.com/api/v5/swagger
+
+---
+
+### Gogs Self-Hosted
+**Support Level:** 🔵 Self-Hosted Support (Experimental)
+
+Gogs is a lightweight Git service, API is experimental but functional
+
+#### Features
+- ✅ API metadata fetching
+- ✅ Release downloading
+- ✅ Avatar downloading
+- ⚠️ API is experimental and may change
+
+#### Usage
+```bash
+# Self-hosted Gogs instance
+iagitbetter --git-provider-type gogs \
+  --api-url https://gogs.example.com/api/v1 \
+  https://gogs.example.com/user/repository
+
+# With authentication
+iagitbetter --git-provider-type gogs \
+  --api-token TOKEN \
+  https://gogs.example.com/user/repository
+```
+
+#### API Documentation
+- API version: v1
+- Format: `/api/v1/*`
+- GitHub: https://github.com/gogs/docs-api
+
+---
+
+### Notabug (notabug.org)
+**Support Level:** 🟡 Partial Support
+
+Notabug runs a fork of Gogs, should work with Gogs provider type
+
+#### Usage
+```bash
+# Notabug repository
+iagitbetter --git-provider-type gogs https://notabug.org/user/repository
+```
+
+---
+
+### SourceForge (sourceforge.net)
+**Support Level:** 🟡 Partial Support (Git only)
+
+SourceForge supports Git, SVN, and Mercurial. Only Git repos can be archived
+
+#### Features
+- ✅ Allura API support
+- ✅ Release API
+- ⚠️ Only Git repositories supported
+- ❌ SVN/Mercurial not supported
+
+#### Usage
+```bash
+# Git repository on SourceForge
+iagitbetter https://sourceforge.net/p/project/code/
+
+# With OAuth token
+iagitbetter --git-provider-type sourceforge --api-token BEARER_TOKEN \
+  https://sourceforge.net/p/project/code/
+```
+
+#### API Documentation
+- Main API: https://sourceforge.net/p/forge/documentation/API/
+- Release API: https://sourceforge.net/p/forge/documentation/Using%20the%20Release%20API/
+- Interactive docs: https://sourceforge.net/api-docs/
+
+---
+
+### Launchpad (launchpad.net)
+**Support Level:** 🟡 Partial Support
+
+Launchpad is Ubuntu's code hosting platform with a REST API
+
+#### Features
+- ✅ REST API available
+- ⚠️ Primarily for Bazaar (bzr), Git support limited
+- ✅ User repository listing
+- ⚠️ Complex authentication
+
+#### Usage
+```bash
+# Launchpad Git repository
+iagitbetter https://git.launchpad.net/project
+
+# May require manual configuration
+```
+
+#### API Documentation
+- API Portal: https://api.launchpad.net/
+- Help: https://help.launchpad.net/API
+- API Docs: https://launchpad.net/+apidoc/
+
+---
+
+### Gerrit (gerrit-review.googlesource.com)
+**Support Level:** 🟡 Partial Support
+
+Gerrit is primarily a code review system, but hosts Git repositories
+
+#### Features
+- ✅ Full REST API
+- ✅ Repository metadata
+- ⚠️ Focused on code review
+- ❌ No release concept
+
+#### Usage
+```bash
+# Gerrit repository
+iagitbetter --git-provider-type gerrit \
+  https://gerrit.example.com/project
+
+# With authentication
+iagitbetter --git-provider-type gerrit \
+  --api-url https://gerrit.example.com \
+  --api-token TOKEN \
+  https://gerrit.example.com/project
+```
+
+#### API Documentation
+- Main API: https://gerrit-review.googlesource.com/Documentation/rest-api.html
+- Projects API: https://gerrit-review.googlesource.com/Documentation/rest-api-projects.html
+
+---
+
 ## Adding New Provider Support
 
 Want to add support for a new provider? Here's what's needed:
@@ -456,8 +628,16 @@ Contributions are welcome
 
 ## Additional Resources
 
+### Currently Supported
 - [GitHub API Documentation](https://docs.github.com/en/rest)
 - [GitLab API Documentation](https://docs.gitlab.com/ee/api/)
 - [Gitea API Documentation](https://docs.gitea.io/en-us/api-usage/)
 - [Forgejo API Documentation](https://forgejo.org/docs/latest/user/api-usage/)
 - [Bitbucket API Documentation](https://developer.atlassian.com/bitbucket/api/2/reference/)
+
+### Experimental / New Providers
+- [Gitee API Documentation](https://gitee.com/api/v5/swagger)
+- [Gogs API Documentation](https://github.com/gogs/docs-api)
+- [SourceForge API Documentation](https://sourceforge.net/p/forge/documentation/API/)
+- [Launchpad API Documentation](https://api.launchpad.net/)
+- [Gerrit REST API Documentation](https://gerrit-review.googlesource.com/Documentation/rest-api.html)
