@@ -890,107 +890,109 @@ class GitArchiver:
         # These map to the deed URLs which are the canonical license URLs
         cc_licenses = {
             # CC0 (Public Domain)
-            'cc0': 'https://creativecommons.org/publicdomain/zero/1.0/',
-            'cc0 1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
-            'cc0 1.0 universal': 'https://creativecommons.org/publicdomain/zero/1.0/',
-            'cc0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
-
+            "cc0": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "cc0 1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "cc0 1.0 universal": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "cc0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
             # CC BY 4.0
-            'cc by 4.0': 'https://creativecommons.org/licenses/by/4.0/',
-            'cc-by-4.0': 'https://creativecommons.org/licenses/by/4.0/',
-            'creative commons attribution 4.0': 'https://creativecommons.org/licenses/by/4.0/',
-            'attribution 4.0 international': 'https://creativecommons.org/licenses/by/4.0/',
-
+            "cc by 4.0": "https://creativecommons.org/licenses/by/4.0/",
+            "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
+            "creative commons attribution 4.0": "https://creativecommons.org/licenses/by/4.0/",
+            "attribution 4.0 international": "https://creativecommons.org/licenses/by/4.0/",
             # CC BY-SA 4.0
-            'cc by-sa 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
-            'cc-by-sa-4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
-            'creative commons attribution-sharealike 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
-            'attribution-sharealike 4.0 international': 'https://creativecommons.org/licenses/by-sa/4.0/',
-
+            "cc by-sa 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "cc-by-sa-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "creative commons attribution-sharealike 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "attribution-sharealike 4.0 international": "https://creativecommons.org/licenses/by-sa/4.0/",
             # CC BY-ND 4.0
-            'cc by-nd 4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
-            'cc-by-nd-4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
-            'creative commons attribution-noderivatives 4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
-            'attribution-noderivatives 4.0 international': 'https://creativecommons.org/licenses/by-nd/4.0/',
-
+            "cc by-nd 4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
+            "cc-by-nd-4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
+            "creative commons attribution-noderivatives 4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
+            "attribution-noderivatives 4.0 international": "https://creativecommons.org/licenses/by-nd/4.0/",
             # CC BY-NC 4.0
-            'cc by-nc 4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
-            'cc-by-nc-4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
-            'creative commons attribution-noncommercial 4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
-            'attribution-noncommercial 4.0 international': 'https://creativecommons.org/licenses/by-nc/4.0/',
-
+            "cc by-nc 4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
+            "cc-by-nc-4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
+            "creative commons attribution-noncommercial 4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
+            "attribution-noncommercial 4.0 international": "https://creativecommons.org/licenses/by-nc/4.0/",
             # CC BY-NC-SA 4.0
-            'cc by-nc-sa 4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-            'cc-by-nc-sa-4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-            'creative commons attribution-noncommercial-sharealike 4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-            'attribution-noncommercial-sharealike 4.0 international': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
-
+            "cc by-nc-sa 4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "cc-by-nc-sa-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "creative commons attribution-noncommercial-sharealike 4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "attribution-noncommercial-sharealike 4.0 international": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
             # CC BY-NC-ND 4.0
-            'cc by-nc-nd 4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-            'cc-by-nc-nd-4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-            'creative commons attribution-noncommercial-noderivatives 4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-            'attribution-noncommercial-noderivatives 4.0 international': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+            "cc by-nc-nd 4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            "cc-by-nc-nd-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            "creative commons attribution-noncommercial-noderivatives 4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            "attribution-noncommercial-noderivatives 4.0 international": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
         }
 
         # Open source license mappings
         # These map to opensource.org or the official license URLs
         open_source_licenses = {
             # MIT
-            'mit': 'https://opensource.org/license/mit',
-            'mit license': 'https://opensource.org/license/mit',
-
+            "mit": "https://opensource.org/license/mit",
+            "mit license": "https://opensource.org/license/mit",
             # Apache 2.0
-            'apache-2.0': 'https://opensource.org/license/apache-2-0',
-            'apache 2.0': 'https://opensource.org/license/apache-2-0',
-            'apache license 2.0': 'https://opensource.org/license/apache-2-0',
-            'apache license, version 2.0': 'https://opensource.org/license/apache-2-0',
-
+            "apache-2.0": "https://opensource.org/license/apache-2-0",
+            "apache 2.0": "https://opensource.org/license/apache-2-0",
+            "apache license 2.0": "https://opensource.org/license/apache-2-0",
+            "apache license, version 2.0": "https://opensource.org/license/apache-2-0",
             # GPL
-            'gpl-3.0': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
-            'gpl-3.0-or-later': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
-            'gnu gpl v3': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
-            'gnu general public license v3.0': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
-
-            'gpl-2.0': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
-            'gpl-2.0-or-later': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
-            'gnu gpl v2': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
-            'gnu general public license v2.0': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
-
+            "gpl-3.0": "https://www.gnu.org/licenses/gpl-3.0.en.html",
+            "gpl-3.0-or-later": "https://www.gnu.org/licenses/gpl-3.0.en.html",
+            "gnu gpl v3": "https://www.gnu.org/licenses/gpl-3.0.en.html",
+            "gnu general public license v3.0": "https://www.gnu.org/licenses/gpl-3.0.en.html",
+            "gpl-2.0": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html",
+            "gpl-2.0-or-later": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html",
+            "gnu gpl v2": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html",
+            "gnu general public license v2.0": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html",
             # LGPL
-            'lgpl-3.0': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
-            'lgpl-3.0-or-later': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
-            'gnu lgpl v3': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
-            'gnu lesser general public license v3.0': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
-
-            'lgpl-2.1': 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html',
-            'lgpl-2.1-or-later': 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html',
-
+            "lgpl-3.0": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
+            "lgpl-3.0-or-later": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
+            "gnu lgpl v3": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
+            "gnu lesser general public license v3.0": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
+            "lgpl-2.1": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html",
+            "lgpl-2.1-or-later": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html",
             # AGPL
-            'agpl-3.0': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
-            'agpl-3.0-or-later': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
-            'gnu agpl v3': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
-            'gnu affero general public license v3.0': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
-
+            "agpl-3.0": "https://www.gnu.org/licenses/agpl-3.0.en.html",
+            "agpl-3.0-or-later": "https://www.gnu.org/licenses/agpl-3.0.en.html",
+            "gnu agpl v3": "https://www.gnu.org/licenses/agpl-3.0.en.html",
+            "gnu affero general public license v3.0": "https://www.gnu.org/licenses/agpl-3.0.en.html",
             # BSD
-            'bsd-3-clause': 'https://opensource.org/license/bsd-3-clause',
-            'bsd 3-clause': 'https://opensource.org/license/bsd-3-clause',
-            'bsd 3-clause "new" or "revised" license': 'https://opensource.org/license/bsd-3-clause',
-
-            'bsd-2-clause': 'https://opensource.org/license/bsd-2-clause',
-            'bsd 2-clause': 'https://opensource.org/license/bsd-2-clause',
-            'bsd 2-clause "simplified" license': 'https://opensource.org/license/bsd-2-clause',
-
+            "bsd-3-clause": "https://opensource.org/license/bsd-3-clause",
+            "bsd 3-clause": "https://opensource.org/license/bsd-3-clause",
+            'bsd 3-clause "new" or "revised" license': "https://opensource.org/license/bsd-3-clause",
+            "bsd-2-clause": "https://opensource.org/license/bsd-2-clause",
+            "bsd 2-clause": "https://opensource.org/license/bsd-2-clause",
+            'bsd 2-clause "simplified" license': "https://opensource.org/license/bsd-2-clause",
             # Mozilla Public License
-            'mpl-2.0': 'https://opensource.org/license/mpl-2-0',
-            'mozilla public license 2.0': 'https://opensource.org/license/mpl-2-0',
-
+            "mpl-2.0": "https://opensource.org/license/mpl-2-0",
+            "mozilla public license 2.0": "https://opensource.org/license/mpl-2-0",
             # ISC
-            'isc': 'https://opensource.org/license/isc-license-txt',
-            'isc license': 'https://opensource.org/license/isc-license-txt',
-
+            "isc": "https://opensource.org/license/isc-license-txt",
+            "isc license": "https://opensource.org/license/isc-license-txt",
             # Unlicense (Public Domain)
-            'unlicense': 'https://unlicense.org/',
-            'the unlicense': 'https://unlicense.org/',
+            "unlicense": "https://unlicense.org/",
+            "the unlicense": "https://unlicense.org/",
+            # Additional SPDX aliases and licenses
+            "afl-3.0": "https://opensource.org/license/afl-3-0",
+            "artistic-2.0": "https://opensource.org/license/artistic-2-0",
+            "bsl-1.0": "https://opensource.org/license/bsl-1-0",
+            "bsd-3-clause-clear": "https://opensource.org/license/bsd-3-clause-clear",
+            "bsd-4-clause": "https://spdx.org/licenses/BSD-4-Clause.html",
+            "0bsd": "https://opensource.org/license/0bsd",
+            "wtfpl": "https://www.wtfpl.net/",
+            "ecl-2.0": "https://opensource.org/license/ecl-2-0",
+            "epl-1.0": "https://opensource.org/license/epl-1-0",
+            "epl-2.0": "https://opensource.org/license/epl-2-0",
+            "eupl-1.1": "https://opensource.org/license/eupl-1-1",
+            "lppl-1.3c": "https://opensource.org/license/lppl",
+            "ms-pl": "https://opensource.org/license/ms-pl-html",
+            "osl-3.0": "https://opensource.org/license/osl-3-0-php",
+            "postgresql": "https://opensource.org/license/postgresql",
+            "ofl-1.1": "https://opensource.org/license/ofl-1-1",
+            "ncsa": "https://opensource.org/license/uoi-ncsa-php",
+            "zlib": "https://opensource.org/license/zlib",
         }
 
         # Check CC licenses first
