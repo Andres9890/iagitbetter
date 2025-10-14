@@ -2196,8 +2196,6 @@ class GitArchiver:
         license_url = self.get_license_url(self.repo_data.get("license", ""))
         if license_url:
             metadata["licenseurl"] = license_url
-        if self.repo_data.get("topics"):
-            metadata["topics"] = ";".join(self.repo_data["topics"])
 
         # Add branch information
         if includes_all_branches:
@@ -2260,8 +2258,6 @@ class GitArchiver:
                 print(f"   License: {metadata['license']}")
                 if metadata.get("licenseurl"):
                     print(f"   License URL: {metadata['licenseurl']}")
-            if metadata.get("topics"):
-                print(f"   Topics: {metadata['topics']}")
 
         try:
             # Get or create the item
