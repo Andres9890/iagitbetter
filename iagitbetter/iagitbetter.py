@@ -873,6 +873,137 @@ class GitArchiver:
             }
         )
 
+    def get_license_url(self, license_name):
+        """
+        Get the standard URL for a given license name.
+        Returns None if the license is not recognized or doesn't have a standard URL.
+
+        This mapping includes Creative Commons licenses and common open source licenses.
+        """
+        if not license_name:
+            return None
+
+        # Normalize license name for comparison (lowercase, remove extra spaces)
+        license_lower = license_name.lower().strip()
+
+        # Creative Commons license mappings
+        # These map to the deed URLs which are the canonical license URLs
+        cc_licenses = {
+            # CC0 (Public Domain)
+            'cc0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+            'cc0 1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+            'cc0 1.0 universal': 'https://creativecommons.org/publicdomain/zero/1.0/',
+            'cc0-1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+
+            # CC BY 4.0
+            'cc by 4.0': 'https://creativecommons.org/licenses/by/4.0/',
+            'cc-by-4.0': 'https://creativecommons.org/licenses/by/4.0/',
+            'creative commons attribution 4.0': 'https://creativecommons.org/licenses/by/4.0/',
+            'attribution 4.0 international': 'https://creativecommons.org/licenses/by/4.0/',
+
+            # CC BY-SA 4.0
+            'cc by-sa 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
+            'cc-by-sa-4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
+            'creative commons attribution-sharealike 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
+            'attribution-sharealike 4.0 international': 'https://creativecommons.org/licenses/by-sa/4.0/',
+
+            # CC BY-ND 4.0
+            'cc by-nd 4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
+            'cc-by-nd-4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
+            'creative commons attribution-noderivatives 4.0': 'https://creativecommons.org/licenses/by-nd/4.0/',
+            'attribution-noderivatives 4.0 international': 'https://creativecommons.org/licenses/by-nd/4.0/',
+
+            # CC BY-NC 4.0
+            'cc by-nc 4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
+            'cc-by-nc-4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
+            'creative commons attribution-noncommercial 4.0': 'https://creativecommons.org/licenses/by-nc/4.0/',
+            'attribution-noncommercial 4.0 international': 'https://creativecommons.org/licenses/by-nc/4.0/',
+
+            # CC BY-NC-SA 4.0
+            'cc by-nc-sa 4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+            'cc-by-nc-sa-4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+            'creative commons attribution-noncommercial-sharealike 4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+            'attribution-noncommercial-sharealike 4.0 international': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+
+            # CC BY-NC-ND 4.0
+            'cc by-nc-nd 4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+            'cc-by-nc-nd-4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+            'creative commons attribution-noncommercial-noderivatives 4.0': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+            'attribution-noncommercial-noderivatives 4.0 international': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+        }
+
+        # Open source license mappings
+        # These map to opensource.org or the official license URLs
+        open_source_licenses = {
+            # MIT
+            'mit': 'https://opensource.org/license/mit',
+            'mit license': 'https://opensource.org/license/mit',
+
+            # Apache 2.0
+            'apache-2.0': 'https://opensource.org/license/apache-2-0',
+            'apache 2.0': 'https://opensource.org/license/apache-2-0',
+            'apache license 2.0': 'https://opensource.org/license/apache-2-0',
+            'apache license, version 2.0': 'https://opensource.org/license/apache-2-0',
+
+            # GPL
+            'gpl-3.0': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
+            'gpl-3.0-or-later': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
+            'gnu gpl v3': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
+            'gnu general public license v3.0': 'https://www.gnu.org/licenses/gpl-3.0.en.html',
+
+            'gpl-2.0': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
+            'gpl-2.0-or-later': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
+            'gnu gpl v2': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
+            'gnu general public license v2.0': 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html',
+
+            # LGPL
+            'lgpl-3.0': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
+            'lgpl-3.0-or-later': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
+            'gnu lgpl v3': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
+            'gnu lesser general public license v3.0': 'https://www.gnu.org/licenses/lgpl-3.0.en.html',
+
+            'lgpl-2.1': 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html',
+            'lgpl-2.1-or-later': 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html',
+
+            # AGPL
+            'agpl-3.0': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+            'agpl-3.0-or-later': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+            'gnu agpl v3': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+            'gnu affero general public license v3.0': 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+
+            # BSD
+            'bsd-3-clause': 'https://opensource.org/license/bsd-3-clause',
+            'bsd 3-clause': 'https://opensource.org/license/bsd-3-clause',
+            'bsd 3-clause "new" or "revised" license': 'https://opensource.org/license/bsd-3-clause',
+
+            'bsd-2-clause': 'https://opensource.org/license/bsd-2-clause',
+            'bsd 2-clause': 'https://opensource.org/license/bsd-2-clause',
+            'bsd 2-clause "simplified" license': 'https://opensource.org/license/bsd-2-clause',
+
+            # Mozilla Public License
+            'mpl-2.0': 'https://opensource.org/license/mpl-2-0',
+            'mozilla public license 2.0': 'https://opensource.org/license/mpl-2-0',
+
+            # ISC
+            'isc': 'https://opensource.org/license/isc-license-txt',
+            'isc license': 'https://opensource.org/license/isc-license-txt',
+
+            # Unlicense (Public Domain)
+            'unlicense': 'https://unlicense.org/',
+            'the unlicense': 'https://unlicense.org/',
+        }
+
+        # Check CC licenses first
+        if license_lower in cc_licenses:
+            return cc_licenses[license_lower]
+
+        # Check open source licenses
+        if license_lower in open_source_licenses:
+            return open_source_licenses[license_lower]
+
+        # No matching license URL found
+        return None
+
     def _parse_gitee_response(self, api_data):
         """Parse Gitee API response"""
         self.repo_data.update(
@@ -2061,6 +2192,12 @@ class GitArchiver:
             "totalcommits": str(self.repo_data.get("total_commits", 0)),
         }
 
+        license_url = self.get_license_url(self.repo_data.get("license", ""))
+        if license_url:
+            metadata["licenseurl"] = license_url
+        if self.repo_data.get("topics"):
+            metadata["topics"] = ";".join(self.repo_data["topics"])
+
         # Add branch information
         if includes_all_branches:
             metadata["allbranches"] = "true"
@@ -2111,6 +2248,19 @@ class GitArchiver:
             )
             print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
             print(f"   Contents: {', '.join(archive_details)}")
+
+            if metadata.get("stars"):
+                print(f"   Stars: {metadata['stars']}")
+            if metadata.get("forks"):
+                print(f"   Forks: {metadata['forks']}")
+            if metadata.get("language"):
+                print(f"   Primary Language: {metadata['language']}")
+            if metadata.get("license"):
+                print(f"   License: {metadata['license']}")
+                if metadata.get("licenseurl"):
+                    print(f"   License URL: {metadata['licenseurl']}")
+            if metadata.get("topics"):
+                print(f"   Topics: {metadata['topics']}")
 
         try:
             # Get or create the item
