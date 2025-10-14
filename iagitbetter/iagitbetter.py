@@ -1173,7 +1173,11 @@ class GitArchiver:
             elif (
                 isinstance(value, (list, dict, str, int, float, bool)) or value is None
             ):
-                repo_info[key] = value
+                # Limit releases in file to latest 5
+                if key == "releases" and isinstance(value, list) and len(value) > 5:
+                    repo_info[key] = value[:5]
+                else:
+                    repo_info[key] = value
             else:
                 repo_info[key] = str(value)
 
@@ -1496,15 +1500,10 @@ class GitArchiver:
         if all_releases:
             releases_to_download = releases
         else:
-            # Download only the latest non-prerelease release
-            latest_release = None
-            for release in releases:
-                if not release.get("prerelease", False) and not release.get(
-                    "draft", False
-                ):
-                    latest_release = release
-                    break
-            releases_to_download = [latest_release] if latest_release else []
+            # Download only the latest release (regardless of prerelease)
+            # Filter out drafts only
+            non_draft_releases = [r for r in releases if not r.get("draft", False)]
+            releases_to_download = [non_draft_releases[0]] if non_draft_releases else []
 
         if not releases_to_download:
             if self.verbose:
