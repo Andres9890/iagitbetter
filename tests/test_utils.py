@@ -187,7 +187,7 @@ It has multiple lines.
             description = self.archiver.get_description_from_readme(temp_dir)
 
             self.assertEqual(
-                description, "This git repository doesn't have a README.md file"
+                description, "This repository doesn't have a README file"
             )
 
     def test_handle_remove_readonly_windows(self):
