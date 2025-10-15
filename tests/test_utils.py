@@ -186,9 +186,7 @@ It has multiple lines.
         with tempfile.TemporaryDirectory() as temp_dir:
             description = self.archiver.get_description_from_readme(temp_dir)
 
-            self.assertEqual(
-                description, "This repository doesn't have a README file"
-            )
+            self.assertEqual(description, "This repository doesn't have a README file")
 
     def test_handle_remove_readonly_windows(self):
         """Test the Windows readonly file handler"""
