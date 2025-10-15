@@ -513,9 +513,16 @@ class GitArchiver:
         path_parts = parsed.path.strip("/").split("/")
 
         # Handle different URL formats
-        if git_site == "gist" and len(path_parts) >= 2:
-            owner = path_parts[0]
-            repo_name = path_parts[1].removesuffix(".git")
+        if git_site == "gist":
+            if len(path_parts) >= 2:
+                owner = path_parts[0]
+                repo_name = path_parts[1].removesuffix(".git")
+            elif len(path_parts) == 1:
+                owner = "unknown"
+                repo_name = path_parts[0].removesuffix(".git")
+            else:
+                owner = "unknown"
+                repo_name = "repository"
         elif len(path_parts) >= 2:
             owner = path_parts[0]
             repo_name = path_parts[1].removesuffix(".git")
@@ -1559,19 +1566,18 @@ class GitArchiver:
             if self.repo_data.get("git_site") != "gist":
                 return comments
 
-            num_comments = self.repo_data.get("gist_comments", 0)
-            if num_comments == 0:
+            if not gist_id:
                 if self.verbose:
-                    print("   No comments found for this gist")
+                    print("   No gist ID available for comment fetching")
                 return comments
 
             url = f"https://api.github.com/gists/{gist_id}/comments"
-            headers = {}
+            headers = {"Accept": "application/vnd.github.v3+json"}
             if self.api_token:
                 headers["Authorization"] = f"token {self.api_token}"
 
             if self.verbose:
-                print(f"   Fetching {num_comments} comment(s) from gist...")
+                print("   Fetching comments from gist...")
 
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
@@ -1589,7 +1595,16 @@ class GitArchiver:
                     comments.append(comment_data)
 
                 if self.verbose:
-                    print(f"   Fetched {len(comments)} comment(s)")
+                    if len(comments) > 0:
+                        print(f"   Fetched {len(comments)} comment(s)")
+                    else:
+                        print("   No comments found for this gist")
+            elif response.status_code == 404:
+                if self.verbose:
+                    print("   Gist not found or comments not accessible")
+            elif response.status_code == 403:
+                if self.verbose:
+                    print("   Access denied - API token may be required for private gists")
             else:
                 if self.verbose:
                     print(
