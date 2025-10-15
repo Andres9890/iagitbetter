@@ -1604,7 +1604,9 @@ class GitArchiver:
                     print("   Gist not found or comments not accessible")
             elif response.status_code == 403:
                 if self.verbose:
-                    print("   Access denied - API token may be required for private gists")
+                    print(
+                        "   Access denied - API token may be required for private gists"
+                    )
             else:
                 if self.verbose:
                     print(
