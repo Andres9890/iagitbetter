@@ -2133,7 +2133,7 @@ class GitArchiver:
                 except Exception:
                     pass
 
-        return "This git repository doesn't have a README.md file"
+        return "This repository doesn't have a README file"
 
     def upload_to_ia(
         self,
