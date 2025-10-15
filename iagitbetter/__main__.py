@@ -252,7 +252,7 @@ Key improvements over iagitup:
     selfhosted_group.add_argument(
         "--git-provider-type",
         type=str,
-        choices=["github", "gitlab", "gitea", "bitbucket"],
+        choices=["github", "gitlab", "gitea", "bitbucket", "gist"],
         help="Specify the git provider type for self-hosted instances",
     )
     selfhosted_group.add_argument(

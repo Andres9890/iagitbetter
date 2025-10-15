@@ -481,7 +481,9 @@ class GitArchiver:
         # Detect git provider type
         if not self.git_provider_type:
             # Auto-detect based on domain
-            if "github" in domain:
+            if domain == "gist.github.com":
+                git_site = "gist"
+            elif "github" in domain:
                 git_site = "github"
             elif "gitlab" in domain:
                 git_site = "gitlab"
@@ -511,7 +513,10 @@ class GitArchiver:
         path_parts = parsed.path.strip("/").split("/")
 
         # Handle different URL formats
-        if len(path_parts) >= 2:
+        if git_site == "gist" and len(path_parts) >= 2:
+            owner = path_parts[0]
+            repo_name = path_parts[1].removesuffix(".git")
+        elif len(path_parts) >= 2:
             owner = path_parts[0]
             repo_name = path_parts[1].removesuffix(".git")
         else:
@@ -547,7 +552,9 @@ class GitArchiver:
         # If custom API URL is provided, treat it as the base API URL for that provider
         if self.api_url:
             base = self.api_url.rstrip("/")
-            if site == "github":
+            if site == "gist":
+                return f"{base}/gists/{repo_name}"
+            elif site == "github":
                 return f"{base}/repos/{owner}/{repo_name}"
             elif site == "gitlab":
                 # GitLab projects use URL-encoded path
@@ -568,7 +575,9 @@ class GitArchiver:
             return f"{base}/repos/{owner}/{repo_name}"
 
         # No custom api_url: use known public endpoints
-        if site == "github" or domain == "github.com":
+        if site == "gist" or domain == "gist.github.com":
+            return f"https://api.github.com/gists/{repo_name}"
+        elif site == "github" or domain == "github.com":
             return f"https://api.github.com/repos/{owner}/{repo_name}"
         elif site == "gitlab" or domain == "gitlab.com":
             return f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}"
@@ -603,7 +612,9 @@ class GitArchiver:
                 self.git_provider_type or self.repo_data.get("git_site") or ""
             ).lower()
             if self.api_token:
-                if site == "github":
+                if site == "gist":
+                    headers["Authorization"] = f"token {self.api_token}"
+                elif site == "github":
                     headers["Authorization"] = f"token {self.api_token}"
                 elif site == "gitlab":
                     headers["PRIVATE-TOKEN"] = self.api_token
@@ -653,7 +664,9 @@ class GitArchiver:
         """Parse API response based on the git provider"""
         site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
 
-        if site == "gitee":
+        if site == "gist":
+            self._parse_gist_response(api_data)
+        elif site == "gitee":
             self._parse_gitee_response(api_data)
         elif site == "gogs":
             self._parse_gogs_response(api_data)
@@ -722,6 +735,59 @@ class GitArchiver:
                     if api_data.get("owner")
                     else ""
                 ),
+            }
+        )
+
+    def _parse_gist_response(self, api_data):
+        """Parse GitHub Gist API response"""
+        description = api_data.get("description", "")
+
+        files = api_data.get("files", {})
+        file_list = list(files.keys()) if files else []
+
+        languages = set()
+        for file_info in files.values():
+            if file_info.get("language"):
+                languages.add(file_info.get("language"))
+        primary_language = ", ".join(sorted(languages)) if languages else ""
+
+        self.repo_data.update(
+            {
+                "description": description,
+                "created_at": api_data.get("created_at", ""),
+                "updated_at": api_data.get("updated_at", ""),
+                "pushed_at": api_data.get("updated_at", ""),
+                "language": primary_language,
+                "stars": 0,
+                "forks": len(api_data.get("forks", [])) if api_data.get("forks") else 0,
+                "watchers": 0,
+                "subscribers": 0,
+                "open_issues": 0,
+                "homepage": "",
+                "topics": [],
+                "license": "",
+                "default_branch": "master",
+                "has_wiki": False,
+                "has_pages": False,
+                "has_projects": False,
+                "has_issues": False,
+                "archived": False,
+                "disabled": False,
+                "private": not api_data.get("public", True),
+                "fork": False,
+                "size": sum(f.get("size", 0) for f in files.values()) if files else 0,
+                "network_count": 0,
+                "clone_url": api_data.get("git_pull_url", ""),
+                "ssh_url": api_data.get("git_push_url", ""),
+                "html_url": api_data.get("html_url", ""),
+                "visibility": "public" if api_data.get("public", True) else "private",
+                "avatar_url": (
+                    api_data.get("owner", {}).get("avatar_url", "")
+                    if api_data.get("owner")
+                    else ""
+                ),
+                "gist_files": file_list,
+                "gist_comments": api_data.get("comments", 0),
             }
         )
 

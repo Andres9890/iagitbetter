@@ -65,6 +65,47 @@ iagitbetter --api-token example https://github.com/user/private-repo
 
 ---
 
+### GitHub Gist (gist.github.com)
+**Support Level:** 🟢 Full Support
+
+GitHub Gists are fully supported as they are git repositories
+
+#### Features
+- ✅ Metadata fetching
+- ✅ File listing
+- ✅ Language detection
+- ✅ Public/private status
+- ✅ Comment count
+- ✅ Fork count
+- ✅ Avatar downloading
+- ❌ Stars (not exposed via API)
+- ❌ Releases
+
+#### Usage
+```bash
+# Public gist
+iagitbetter https://gist.github.com/username/gist_id
+
+# Private gist (requires token)
+iagitbetter --api-token ghp_... https://gist.github.com/username/gist_id
+
+# With --git-provider-type
+iagitbetter --git-provider-type gist https://gist.github.com/username/gist_id
+```
+
+#### API Token
+Same as GitHub:
+1. Go to Settings → Developer settings → Personal access tokens
+2. Generate new token (classic)
+3. Select scopes: `gist` for gist access
+4. Use token with `--api-token ghp_...`
+
+#### API Endpoints
+- Base: `https://api.github.com`
+- Gist: `https://api.github.com/gists/{gist_id}`
+
+---
+
 ### GitLab (gitlab.com)
 **Support Level:** 🟢 Full Support
 
@@ -387,6 +428,7 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 | Provider | Metadata | Releases | Avatar | Self-Hosted | Notes |
 |----------|----------|----------|--------|-------------|-------|
 | GitHub | ✅ | ✅ | ✅ | ✅ | Full support |
+| GitHub Gist | ✅ | ❌ | ✅ | N/A | Full support, no releases |
 | GitLab | ✅ | ✅ | ✅ | ✅ | Full support |
 | Codeberg | ✅ | ✅ | ✅ | N/A | Forgejo-based |
 | Gitea | ✅ | ✅ | ✅ | ✅ | Full support |
@@ -630,6 +672,7 @@ Contributions are welcome
 
 ### Currently Supported
 - [GitHub API Documentation](https://docs.github.com/en/rest)
+- [GitHub Gist API Documentation](https://docs.github.com/en/rest/gists)
 - [GitLab API Documentation](https://docs.gitlab.com/ee/api/)
 - [Gitea API Documentation](https://docs.gitea.io/en-us/api-usage/)
 - [Forgejo API Documentation](https://forgejo.org/docs/latest/user/api-usage/)

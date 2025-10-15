@@ -151,6 +151,9 @@ iagitbetter --git-provider-type gogs https://gogs.example.com/user/repository
 
 # Archive from SourceForge (Git repos only)
 iagitbetter https://sourceforge.net/p/project/dog/
+
+# Archive from GitHub Gist
+iagitbetter https://gist.github.com/username/gist_id
 ```
 
 ### User/Org Archiving
