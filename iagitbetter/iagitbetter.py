@@ -1550,6 +1550,86 @@ class GitArchiver:
                 print(f"   Could not fetch releases: {e}")
             self.repo_data["releases"] = []
 
+    def fetch_gist_comments(self):
+        """Fetch comments from a GitHub Gist"""
+        gist_id = self.repo_data.get("repo_name")
+        comments = []
+
+        try:
+            if self.repo_data.get("git_site") != "gist":
+                return comments
+
+            num_comments = self.repo_data.get("gist_comments", 0)
+            if num_comments == 0:
+                if self.verbose:
+                    print("   No comments found for this gist")
+                return comments
+
+            url = f"https://api.github.com/gists/{gist_id}/comments"
+            headers = {}
+            if self.api_token:
+                headers["Authorization"] = f"token {self.api_token}"
+
+            if self.verbose:
+                print(f"   Fetching {num_comments} comment(s) from gist...")
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                api_comments = response.json()
+
+                for comment in api_comments:
+                    comment_data = {
+                        "id": comment.get("id"),
+                        "user": comment.get("user", {}).get("login", ""),
+                        "body": comment.get("body", ""),
+                        "created_at": comment.get("created_at", ""),
+                        "updated_at": comment.get("updated_at", ""),
+                        "author_association": comment.get("author_association", ""),
+                    }
+                    comments.append(comment_data)
+
+                if self.verbose:
+                    print(f"   Fetched {len(comments)} comment(s)")
+            else:
+                if self.verbose:
+                    print(
+                        f"   Could not fetch comments (status {response.status_code})"
+                    )
+
+        except Exception as e:
+            if self.verbose:
+                print(f"   Could not fetch comments: {e}")
+
+        return comments
+
+    def save_gist_comments(self, repo_path):
+        """Save gist comments to a JSON file"""
+        try:
+            if self.repo_data.get("git_site") != "gist":
+                return None
+
+            comments = self.fetch_gist_comments()
+
+            if not comments:
+                return None
+
+            gist_id = self.repo_data.get("repo_name")
+            comments_filename = f"{gist_id}.comments.json"
+            comments_path = os.path.join(repo_path, comments_filename)
+
+            with open(comments_path, "w", encoding="utf-8") as f:
+                json.dump(comments, f, indent=2, ensure_ascii=False)
+
+            if self.verbose:
+                print(f"   Saved {len(comments)} comment(s) to: {comments_filename}")
+
+            return comments_path
+
+        except Exception as e:
+            if self.verbose:
+                print(f"   Could not save gist comments: {e}")
+            return None
+
     def download_releases(self, repo_path, all_releases=False):
         """Download releases to the repository directory"""
         if not self.repo_data.get("releases"):
@@ -2606,6 +2686,9 @@ class GitArchiver:
         repo_path = self.clone_repository(
             repo_url, all_branches=all_branches, specific_branch=specific_branch
         )
+
+        if self.repo_data.get("git_site") == "gist":
+            self.save_gist_comments(repo_path)
 
         # Download releases if requested
         if releases:
