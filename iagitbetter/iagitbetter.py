@@ -642,7 +642,7 @@ class GitArchiver:
                     headers["Authorization"] = f"token {self.api_token}"
 
             if self.verbose:
-                print(f"   Fetching metadata from API...")
+                print("   Fetching metadata from API...")
 
             response = requests.get(api_url, headers=headers, timeout=10)
             if response.status_code == 200:
@@ -995,7 +995,9 @@ class GitArchiver:
             # CC BY-NC-ND 4.0
             "cc by-nc-nd 4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
             "cc-by-nc-nd-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
-            "creative commons attribution-noncommercial-noderivatives 4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            "creative commons attribution-noncommercial-noderivatives 4.0": (
+                "https://creativecommons.org/licenses/by-nc-nd/4.0/"
+            ),
             "attribution-noncommercial-noderivatives 4.0 international": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
         }
 
@@ -1267,6 +1269,253 @@ class GitArchiver:
 
         return info_path
 
+    def _fetch_github_releases(self, owner, repo_name):
+        """Fetch releases from GitHub API"""
+        releases = []
+        page = 1
+        per_page = 100
+
+        while True:
+            url = f"https://api.github.com/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            headers = {}
+            if self.api_token and (self.repo_data.get("git_site") == "github"):
+                headers["Authorization"] = f"token {self.api_token}"
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                break
+
+            api_releases = response.json()
+            if not api_releases:
+                break
+
+            for release in api_releases:
+                release_data = {
+                    "id": release.get("id"),
+                    "tag_name": release.get("tag_name"),
+                    "name": release.get("name", release.get("tag_name")),
+                    "body": release.get("body", ""),
+                    "draft": release.get("draft", False),
+                    "prerelease": release.get("prerelease", False),
+                    "published_at": release.get("published_at"),
+                    "zipball_url": release.get("zipball_url"),
+                    "tarball_url": release.get("tarball_url"),
+                    "assets": [],
+                }
+
+                for asset in release.get("assets", []):
+                    release_data["assets"].append({
+                        "name": asset.get("name"),
+                        "download_url": asset.get("browser_download_url"),
+                        "size": asset.get("size"),
+                        "content_type": asset.get("content_type"),
+                    })
+
+                releases.append(release_data)
+
+            if len(api_releases) < per_page:
+                break
+            page += 1
+
+        return releases
+
+    def _fetch_gitlab_releases(self, domain, owner, repo_name):
+        """Fetch releases from GitLab API"""
+        releases = []
+        project_id = self.repo_data.get("project_id")
+        if not project_id:
+            return releases
+
+        page = 1
+        per_page = 100
+
+        while True:
+            url = f"https://{domain}/api/v4/projects/{project_id}/releases?per_page={per_page}&page={page}"
+            headers = {}
+            if self.api_token:
+                headers["PRIVATE-TOKEN"] = self.api_token
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                break
+
+            api_releases = response.json()
+            if not api_releases:
+                break
+
+            for release in api_releases:
+                tag_name = release.get("tag_name")
+                release_data = {
+                    "tag_name": tag_name,
+                    "name": release.get("name", tag_name),
+                    "description": release.get("description", ""),
+                    "released_at": release.get("released_at"),
+                    "zipball_url": f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip",
+                    "tarball_url": f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz",
+                    "assets": [],
+                }
+
+                for link in release.get("assets", {}).get("links", []):
+                    release_data["assets"].append({
+                        "name": link.get("name"),
+                        "download_url": link.get("url"),
+                        "link_type": link.get("link_type"),
+                    })
+
+                releases.append(release_data)
+
+            if len(api_releases) < per_page:
+                break
+            page += 1
+
+        return releases
+
+    def _fetch_gitea_releases(self, domain, owner, repo_name):
+        """Fetch releases from Gitea/Forgejo/Codeberg API"""
+        releases = []
+        page = 1
+        per_page = 50
+
+        while True:
+            url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            headers = {}
+            if self.api_token:
+                headers["Authorization"] = f"token {self.api_token}"
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                break
+
+            api_releases = response.json()
+            if not api_releases:
+                break
+
+            for release in api_releases:
+                release_data = {
+                    "id": release.get("id"),
+                    "tag_name": release.get("tag_name"),
+                    "name": release.get("name", release.get("tag_name")),
+                    "body": release.get("body", ""),
+                    "draft": release.get("draft", False),
+                    "prerelease": release.get("prerelease", False),
+                    "published_at": release.get("published_at"),
+                    "zipball_url": release.get("zipball_url"),
+                    "tarball_url": release.get("tarball_url"),
+                    "assets": [],
+                }
+
+                for asset in release.get("assets", []):
+                    release_data["assets"].append({
+                        "name": asset.get("name"),
+                        "download_url": asset.get("browser_download_url"),
+                        "size": asset.get("size"),
+                    })
+
+                releases.append(release_data)
+
+            if len(api_releases) < per_page:
+                break
+            page += 1
+
+        return releases
+
+    def _fetch_gitee_releases(self, owner, repo_name):
+        """Fetch releases from Gitee API"""
+        releases = []
+        page = 1
+        per_page = 100
+
+        while True:
+            url = f"https://gitee.com/api/v5/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            headers = {}
+            if self.api_token:
+                headers["Authorization"] = f"token {self.api_token}"
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                break
+
+            api_releases = response.json()
+            if not api_releases:
+                break
+
+            for release in api_releases:
+                release_data = {
+                    "id": release.get("id"),
+                    "tag_name": release.get("tag_name"),
+                    "name": release.get("name", release.get("tag_name")),
+                    "body": release.get("body", ""),
+                    "prerelease": release.get("prerelease", False),
+                    "created_at": release.get("created_at"),
+                    "zipball_url": release.get("zipball_url"),
+                    "tarball_url": release.get("tarball_url"),
+                    "assets": [],
+                }
+
+                for asset in release.get("assets", []):
+                    release_data["assets"].append({
+                        "name": asset.get("name"),
+                        "download_url": asset.get("browser_download_url"),
+                        "size": asset.get("size"),
+                    })
+
+                releases.append(release_data)
+
+            if len(api_releases) < per_page:
+                break
+            page += 1
+
+        return releases
+
+    def _fetch_gogs_releases(self, domain, owner, repo_name):
+        """Fetch releases from Gogs/Notabug API"""
+        releases = []
+        page = 1
+        per_page = 50
+
+        while True:
+            url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            headers = {}
+            if self.api_token:
+                headers["Authorization"] = f"token {self.api_token}"
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                break
+
+            api_releases = response.json()
+            if not api_releases:
+                break
+
+            for release in api_releases:
+                release_data = {
+                    "id": release.get("id"),
+                    "tag_name": release.get("tag_name"),
+                    "name": release.get("name", release.get("tag_name")),
+                    "body": release.get("body", ""),
+                    "draft": release.get("draft", False),
+                    "prerelease": release.get("prerelease", False),
+                    "published_at": release.get("created_at"),
+                    "zipball_url": release.get("zipball_url"),
+                    "tarball_url": release.get("tarball_url"),
+                    "assets": [],
+                }
+
+                for asset in release.get("assets", []):
+                    release_data["assets"].append({
+                        "name": asset.get("name"),
+                        "download_url": asset.get("browser_download_url"),
+                        "size": asset.get("size"),
+                    })
+
+                releases.append(release_data)
+
+            if len(api_releases) < per_page:
+                break
+            page += 1
+
+        return releases
+
     def fetch_releases(self):
         """Fetch releases from the git provider API with pagination support"""
         domain = self.repo_data["domain"]
@@ -1277,274 +1526,15 @@ class GitArchiver:
 
         try:
             if domain == "github.com" or self.repo_data["git_site"] == "github":
-                # GitHub releases API with pagination
-                page = 1
-                per_page = 100  # GitHub allows up to 100 per page
-
-                while True:
-                    url = f"https://api.github.com/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-                    headers = {}
-                    if self.api_token and (self.repo_data.get("git_site") == "github"):
-                        headers["Authorization"] = f"token {self.api_token}"
-
-                    response = requests.get(url, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        api_releases = response.json()
-
-                        # If no more releases, break
-                        if not api_releases:
-                            break
-
-                        for release in api_releases:
-                            release_data = {
-                                "id": release.get("id"),
-                                "tag_name": release.get("tag_name"),
-                                "name": release.get("name", release.get("tag_name")),
-                                "body": release.get("body", ""),
-                                "draft": release.get("draft", False),
-                                "prerelease": release.get("prerelease", False),
-                                "published_at": release.get("published_at"),
-                                "zipball_url": release.get("zipball_url"),
-                                "tarball_url": release.get("tarball_url"),
-                                "assets": [],
-                            }
-
-                            # Add assets
-                            for asset in release.get("assets", []):
-                                release_data["assets"].append(
-                                    {
-                                        "name": asset.get("name"),
-                                        "download_url": asset.get(
-                                            "browser_download_url"
-                                        ),
-                                        "size": asset.get("size"),
-                                        "content_type": asset.get("content_type"),
-                                    }
-                                )
-
-                            releases.append(release_data)
-
-                        # Check if there are more pages
-                        if len(api_releases) < per_page:
-                            break
-                        page += 1
-                    else:
-                        break
-
+                releases = self._fetch_github_releases(owner, repo_name)
             elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
-                # GitLab releases API with pagination
-                project_id = self.repo_data.get("project_id")
-                if project_id:
-                    page = 1
-                    per_page = 100  # GitLab allows up to 100 per page
-
-                    while True:
-                        url = f"https://{domain}/api/v4/projects/{project_id}/releases?per_page={per_page}&page={page}"
-                        headers = {}
-                        if self.api_token:
-                            headers["PRIVATE-TOKEN"] = self.api_token
-
-                        response = requests.get(url, headers=headers, timeout=10)
-                        if response.status_code == 200:
-                            api_releases = response.json()
-
-                            # If no more releases, break
-                            if not api_releases:
-                                break
-
-                            for release in api_releases:
-                                release_data = {
-                                    "tag_name": release.get("tag_name"),
-                                    "name": release.get(
-                                        "name", release.get("tag_name")
-                                    ),
-                                    "description": release.get("description", ""),
-                                    "released_at": release.get("released_at"),
-                                    "assets": [],
-                                }
-
-                                # Use instance domain for source archives
-                                tag_name = release.get("tag_name")
-                                release_data["zipball_url"] = (
-                                    f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip"
-                                )
-                                release_data["tarball_url"] = (
-                                    f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz"
-                                )
-
-                                # Add release assets/links
-                                for link in release.get("assets", {}).get("links", []):
-                                    release_data["assets"].append(
-                                        {
-                                            "name": link.get("name"),
-                                            "download_url": link.get("url"),
-                                            "link_type": link.get("link_type"),
-                                        }
-                                    )
-
-                                releases.append(release_data)
-
-                            # Check if there are more pages
-                            if len(api_releases) < per_page:
-                                break
-                            page += 1
-                        else:
-                            break
-
-            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data[
-                "git_site"
-            ] in ["codeberg", "gitea"]:
-                # Gitea/Forgejo releases API with pagination
-                page = 1
-                per_page = 50  # Gitea default max is 50
-
-                while True:
-                    url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-                    headers = {}
-                    if self.api_token:
-                        headers["Authorization"] = f"token {self.api_token}"
-
-                    response = requests.get(url, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        api_releases = response.json()
-
-                        # If no more releases, break
-                        if not api_releases:
-                            break
-
-                        for release in api_releases:
-                            release_data = {
-                                "id": release.get("id"),
-                                "tag_name": release.get("tag_name"),
-                                "name": release.get("name", release.get("tag_name")),
-                                "body": release.get("body", ""),
-                                "draft": release.get("draft", False),
-                                "prerelease": release.get("prerelease", False),
-                                "published_at": release.get("published_at"),
-                                "zipball_url": release.get("zipball_url"),
-                                "tarball_url": release.get("tarball_url"),
-                                "assets": [],
-                            }
-
-                            # Add assets
-                            for asset in release.get("assets", []):
-                                release_data["assets"].append(
-                                    {
-                                        "name": asset.get("name"),
-                                        "download_url": asset.get(
-                                            "browser_download_url"
-                                        ),
-                                        "size": asset.get("size"),
-                                    }
-                                )
-
-                            releases.append(release_data)
-
-                        # Check if there are more pages
-                        if len(api_releases) < per_page:
-                            break
-                        page += 1
-                    else:
-                        break
-
+                releases = self._fetch_gitlab_releases(domain, owner, repo_name)
+            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data["git_site"] in ["codeberg", "gitea"]:
+                releases = self._fetch_gitea_releases(domain, owner, repo_name)
             elif domain == "gitee.com" or self.repo_data["git_site"] == "gitee":
-                page = 1
-                per_page = 100
-
-                while True:
-                    url = f"https://gitee.com/api/v5/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-                    headers = {}
-                    if self.api_token:
-                        headers["Authorization"] = f"token {self.api_token}"
-
-                    response = requests.get(url, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        api_releases = response.json()
-
-                        if not api_releases:
-                            break
-
-                        for release in api_releases:
-                            release_data = {
-                                "id": release.get("id"),
-                                "tag_name": release.get("tag_name"),
-                                "name": release.get("name", release.get("tag_name")),
-                                "body": release.get("body", ""),
-                                "prerelease": release.get("prerelease", False),
-                                "created_at": release.get("created_at"),
-                                "zipball_url": release.get("zipball_url"),
-                                "tarball_url": release.get("tarball_url"),
-                                "assets": [],
-                            }
-
-                            for asset in release.get("assets", []):
-                                release_data["assets"].append(
-                                    {
-                                        "name": asset.get("name"),
-                                        "download_url": asset.get(
-                                            "browser_download_url"
-                                        ),
-                                        "size": asset.get("size"),
-                                    }
-                                )
-
-                            releases.append(release_data)
-
-                        if len(api_releases) < per_page:
-                            break
-                        page += 1
-                    else:
-                        break
-
+                releases = self._fetch_gitee_releases(owner, repo_name)
             elif self.repo_data["git_site"] == "gogs" or domain == "notabug.org":
-                page = 1
-                per_page = 50
-
-                while True:
-                    url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-                    headers = {}
-                    if self.api_token:
-                        headers["Authorization"] = f"token {self.api_token}"
-
-                    response = requests.get(url, headers=headers, timeout=10)
-                    if response.status_code == 200:
-                        api_releases = response.json()
-
-                        if not api_releases:
-                            break
-
-                        for release in api_releases:
-                            release_data = {
-                                "id": release.get("id"),
-                                "tag_name": release.get("tag_name"),
-                                "name": release.get("name", release.get("tag_name")),
-                                "body": release.get("body", ""),
-                                "draft": release.get("draft", False),
-                                "prerelease": release.get("prerelease", False),
-                                "published_at": release.get("created_at"),
-                                "zipball_url": release.get("zipball_url"),
-                                "tarball_url": release.get("tarball_url"),
-                                "assets": [],
-                            }
-
-                            for asset in release.get("assets", []):
-                                release_data["assets"].append(
-                                    {
-                                        "name": asset.get("name"),
-                                        "download_url": asset.get(
-                                            "browser_download_url"
-                                        ),
-                                        "size": asset.get("size"),
-                                    }
-                                )
-
-                            releases.append(release_data)
-
-                        if len(api_releases) < per_page:
-                            break
-                        page += 1
-                    else:
-                        break
+                releases = self._fetch_gogs_releases(domain, owner, repo_name)
 
             self.repo_data["releases"] = releases
             if self.verbose and releases:
@@ -1555,7 +1545,8 @@ class GitArchiver:
         except Exception as e:
             if self.verbose:
                 print(f"   Could not fetch releases: {e}")
-            self.repo_data["releases"] = []
+
+        return self.repo_data.get("releases", [])
 
     def fetch_gist_comments(self):
         """Fetch comments from a GitHub Gist"""
@@ -1899,7 +1890,7 @@ class GitArchiver:
                 print(
                     f"   Default branch ({self.repo_data['default_branch']}) files will be in root directory"
                 )
-                print(f"   Other branches will be organized in branches directory")
+                print("   Other branches will be organized in branches directory")
 
             # Create branches directory for non-default branches: {repo_name}-{owner}_branches
             branches_dir_name = (
@@ -2000,6 +1991,111 @@ class GitArchiver:
             print(f"Error creating bundle: {e}")
             return None
 
+    def _should_skip_directory(self, root):
+        """Check if directory should be skipped during file collection"""
+        dir_name = os.path.basename(root)
+        if dir_name == ".git":
+            return True
+        if os.sep + ".git" + os.sep in root or root.endswith(os.sep + ".git"):
+            return True
+        return False
+
+    def _validate_file(self, file_path, relative_path, skipped_corrupted_files, skipped_unreadable_files, skipped_empty_files):
+        """Validate file for upload, return True if valid, False otherwise"""
+        if not os.path.exists(file_path):
+            skipped_corrupted_files.append((relative_path, "File does not exist"))
+            return False
+
+        if os.path.islink(file_path):
+            if not os.path.exists(os.path.realpath(file_path)):
+                skipped_corrupted_files.append((relative_path, "Broken symbolic link"))
+                return False
+
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                skipped_empty_files.append(relative_path)
+                return False
+
+            with open(file_path, "rb") as f:
+                try:
+                    f.read(1024)
+                except (IOError, OSError) as e:
+                    skipped_unreadable_files.append((relative_path, str(e)))
+                    return False
+
+        except OSError as e:
+            skipped_corrupted_files.append((relative_path, f"OS error: {str(e)}"))
+            return False
+        except PermissionError as e:
+            skipped_unreadable_files.append((relative_path, f"Permission denied: {str(e)}"))
+            return False
+        except Exception as e:
+            skipped_corrupted_files.append((relative_path, f"Unexpected error: {str(e)}"))
+            return False
+
+        return True
+
+    def _get_upload_name(self, relative_path, renamed_svg_files, renamed_bmp_files):
+        """Get upload name for file with necessary renaming for IA compatibility"""
+        if relative_path.lower().endswith(".svg"):
+            renamed_svg_files.append(relative_path)
+            return relative_path + ".xml"
+        elif relative_path.lower().endswith(".bmp"):
+            renamed_bmp_files.append(relative_path)
+            return relative_path + ".bin"
+        else:
+            return relative_path
+
+    def _print_skipped_files_summary(self, skipped_empty_files, skipped_corrupted_files,
+                                     skipped_unreadable_files, renamed_svg_files, renamed_bmp_files, total_files):
+        """Print summary of skipped and renamed files"""
+        if not self.verbose:
+            return
+
+        total_skipped = len(skipped_empty_files) + len(skipped_corrupted_files) + len(skipped_unreadable_files)
+
+        if total_skipped > 0:
+            print("\n   File filtering summary:")
+            print(f"   Total files found: {total_files + total_skipped}")
+            print(f"   Files to upload: {total_files}")
+            print(f"   Files skipped: {total_skipped}")
+
+        if skipped_empty_files:
+            print(f"\n   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):")
+            for empty_file in skipped_empty_files[:5]:
+                print(f"     - {empty_file}")
+            if len(skipped_empty_files) > 5:
+                print(f"     ... and {len(skipped_empty_files) - 5} more")
+
+        if skipped_corrupted_files:
+            print(f"\n   Skipping {len(skipped_corrupted_files)} corrupted/problematic file(s):")
+            for corrupted_file, reason in skipped_corrupted_files[:5]:
+                print(f"     - {corrupted_file}: {reason}")
+            if len(skipped_corrupted_files) > 5:
+                print(f"     ... and {len(skipped_corrupted_files) - 5} more")
+
+        if skipped_unreadable_files:
+            print(f"\n   Skipping {len(skipped_unreadable_files)} unreadable file(s):")
+            for unreadable_file, reason in skipped_unreadable_files[:5]:
+                print(f"     - {unreadable_file}: {reason}")
+            if len(skipped_unreadable_files) > 5:
+                print(f"     ... and {len(skipped_unreadable_files) - 5} more")
+
+        if renamed_svg_files:
+            print(f"\n   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
+            for svg_file in renamed_svg_files[:5]:
+                print(f"     - {svg_file} → {svg_file}.xml")
+            if len(renamed_svg_files) > 5:
+                print(f"     ... and {len(renamed_svg_files) - 5} more")
+
+        if renamed_bmp_files:
+            print(f"\n   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:")
+            for bmp_file in renamed_bmp_files[:5]:
+                print(f"     - {bmp_file} → {bmp_file}.bin")
+            if len(renamed_bmp_files) > 5:
+                print(f"     ... and {len(renamed_bmp_files) - 5} more")
+
     def get_all_files(self, repo_path):
         """Get all files in the repository, preserving directory structure and filtering corrupted files."""
         files_to_upload = {}
@@ -2010,145 +2106,32 @@ class GitArchiver:
         renamed_bmp_files = []
 
         for root, dirs, files in os.walk(repo_path):
-            # Only skip the .git directory itself, not .github or similar folders
-            dir_name = os.path.basename(root)
-            if dir_name == ".git":
-                continue
-
-            if os.sep + ".git" + os.sep in root or root.endswith(os.sep + ".git"):
+            if self._should_skip_directory(root):
                 continue
 
             for file in files:
                 file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, repo_path)
-                relative_path = relative_path.replace(os.sep, "/")
+                relative_path = os.path.relpath(file_path, repo_path).replace(os.sep, "/")
 
-                # Check if file exists and is accessible
-                if not os.path.exists(file_path):
-                    skipped_corrupted_files.append(
-                        (relative_path, "File does not exist")
-                    )
+                if not self._validate_file(file_path, relative_path, skipped_corrupted_files,
+                                          skipped_unreadable_files, skipped_empty_files):
                     continue
 
-                # Check if file is a symbolic link (skip broken symlinks)
-                if os.path.islink(file_path):
-                    if not os.path.exists(os.path.realpath(file_path)):
-                        skipped_corrupted_files.append(
-                            (relative_path, "Broken symbolic link")
-                        )
-                        continue
-
-                # Check file size and readability
-                try:
-                    file_size = os.path.getsize(file_path)
-
-                    # Skip empty files (0 bytes)
-                    if file_size == 0:
-                        skipped_empty_files.append(relative_path)
-                        continue
-
-                    # Try to read first few bytes to verify file is readable
-                    with open(file_path, "rb") as f:
-                        try:
-                            f.read(1024)  # Try reading first 1KB
-                        except (IOError, OSError) as e:
-                            skipped_unreadable_files.append((relative_path, str(e)))
-                            continue
-
-                except OSError as e:
-                    skipped_corrupted_files.append(
-                        (relative_path, f"OS error: {str(e)}")
-                    )
-                    continue
-                except PermissionError as e:
-                    skipped_unreadable_files.append(
-                        (relative_path, f"Permission denied: {str(e)}")
-                    )
-                    continue
-                except Exception as e:
-                    skipped_corrupted_files.append(
-                        (relative_path, f"Unexpected error: {str(e)}")
-                    )
-                    continue
-
-                # Rename .svg files to .svg.xml for Internet Archive compatibility
-                if relative_path.lower().endswith(".svg"):
-                    upload_name = relative_path + ".xml"
-                    renamed_svg_files.append(relative_path)
-                # Rename .bmp files to .bmp.bin for Internet Archive compatibility
-                elif relative_path.lower().endswith(".bmp"):
-                    upload_name = relative_path + ".bin"
-                    renamed_bmp_files.append(relative_path)
-                else:
-                    upload_name = relative_path
-
+                upload_name = self._get_upload_name(relative_path, renamed_svg_files, renamed_bmp_files)
                 files_to_upload[upload_name] = file_path
 
-        # Log information about skipped files
-        if self.verbose:
-            total_skipped = (
-                len(skipped_empty_files)
-                + len(skipped_corrupted_files)
-                + len(skipped_unreadable_files)
-            )
+        # Print summary
+        self._print_skipped_files_summary(skipped_empty_files, skipped_corrupted_files,
+                                          skipped_unreadable_files, renamed_svg_files,
+                                          renamed_bmp_files, len(files_to_upload))
 
-            if total_skipped > 0:
-                print(f"\n   File filtering summary:")
-                print(f"   Total files found: {len(files_to_upload) + total_skipped}")
-                print(f"   Files to upload: {len(files_to_upload)}")
-                print(f"   Files skipped: {total_skipped}")
-
-            if skipped_empty_files:
-                print(
-                    f"\n   Skipping {len(skipped_empty_files)} empty file(s) (0 bytes):"
-                )
-                for empty_file in skipped_empty_files[:5]:
-                    print(f"     - {empty_file}")
-                if len(skipped_empty_files) > 5:
-                    print(f"     ... and {len(skipped_empty_files) - 5} more")
-
-            if skipped_corrupted_files:
-                print(
-                    f"\n   Skipping {len(skipped_corrupted_files)} corrupted/problematic file(s):"
-                )
-                for corrupted_file, reason in skipped_corrupted_files[:5]:
-                    print(f"     - {corrupted_file}: {reason}")
-                if len(skipped_corrupted_files) > 5:
-                    print(f"     ... and {len(skipped_corrupted_files) - 5} more")
-
-            if skipped_unreadable_files:
-                print(
-                    f"\n   Skipping {len(skipped_unreadable_files)} unreadable file(s):"
-                )
-                for unreadable_file, reason in skipped_unreadable_files[:5]:
-                    print(f"     - {unreadable_file}: {reason}")
-                if len(skipped_unreadable_files) > 5:
-                    print(f"     ... and {len(skipped_unreadable_files) - 5} more")
-
-            if renamed_svg_files:
-                print(
-                    f"\n   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
-                )
-                for svg_file in renamed_svg_files[:5]:
-                    print(f"     - {svg_file} → {svg_file}.xml")
-                if len(renamed_svg_files) > 5:
-                    print(f"     ... and {len(renamed_svg_files) - 5} more")
-
-            if renamed_bmp_files:
-                print(
-                    f"\n   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:"
-                )
-                for bmp_file in renamed_bmp_files[:5]:
-                    print(f"     - {bmp_file} → {bmp_file}.bin")
-                if len(renamed_bmp_files) > 5:
-                    print(f"     ... and {len(renamed_bmp_files) - 5} more")
-
-        # Store skip statistics in repo_data for later reference
+        # Store skip statistics
+        total_skipped = len(skipped_empty_files) + len(skipped_corrupted_files) + len(skipped_unreadable_files)
         self.repo_data["skipped_files"] = {
             "empty": len(skipped_empty_files),
             "corrupted": len(skipped_corrupted_files),
             "unreadable": len(skipped_unreadable_files),
-            "total": total_skipped if "total_skipped" in locals() else 0,
+            "total": total_skipped,
         }
 
         return files_to_upload
@@ -2232,36 +2215,16 @@ class GitArchiver:
 
         return "This repository doesn't have a README file"
 
-    def upload_to_ia(
-        self,
-        repo_path,
-        custom_metadata=None,
-        includes_releases=False,
-        includes_all_branches=False,
-        specific_branch=None,
-        bundle_only=False,
-        create_repo_info=True,
-    ):
-        """Upload the repository to the Internet Archive"""
-        # Generate timestamps - use current time for archival date and identifier
-        archive_date = datetime.now()
+    def _generate_upload_identifier(self, archive_date):
+        """Generate identifier for Internet Archive upload"""
+        return f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d%H%M%S')}"
 
-        # Use first commit date for the date metadata, fallback to archive date
-        if "first_commit_date" in self.repo_data:
-            repo_date = self.repo_data["first_commit_date"]
-        else:
-            repo_date = archive_date
+    def _generate_item_name(self):
+        """Generate item name for Internet Archive upload"""
+        return f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
 
-        # Format identifier using archive date: {repo-owner-username}-{repo-name}-%Y%m%d%H%M%S
-        identifier = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d%H%M%S')}"
-
-        # Item name: {repo-owner-username} - {repo-name}
-        item_name = f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
-
-        # Get description from README using iagitup method
-        readme_description = self.get_description_from_readme(repo_path)
-
-        # Build archive details for description
+    def _build_archive_details(self, bundle_only, includes_all_branches, specific_branch, includes_releases):
+        """Build list of archive details for description"""
         archive_details = []
         if bundle_only:
             archive_details.append("Git bundle only")
@@ -2281,11 +2244,11 @@ class GitArchiver:
                 if release_count > 0:
                     archive_details.append(f"{release_count} release(s) with assets")
 
-        # Build full description
-        bundle_filename = (
-            f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
-        )
-        description_footer = f"""<br/><hr/>
+        return archive_details
+
+    def _build_description_footer(self, identifier, bundle_filename, repo_date, archive_date):
+        """Build the footer section for repository description"""
+        return f"""<br/><hr/>
         <p><strong>Repository Information:</strong></p>
         <ul>
             <li>Original Repository: <a href="{self.repo_data['url']}">{self.repo_data['url']}</a></li>
@@ -2303,13 +2266,18 @@ class GitArchiver:
         <pre><code>git clone {bundle_filename}</code></pre>
         """
 
-        # Add repo description if available from API
-        if self.repo_data.get("description"):
-            description = f"<br/>{self.repo_data['description']}<br/><br/>{readme_description}{description_footer}"
-        else:
-            description = f"{readme_description}{description_footer}"
+    def _build_full_description(self, repo_path, identifier, bundle_filename, repo_date, archive_date):
+        """Build the full description for Internet Archive upload"""
+        readme_description = self.get_description_from_readme(repo_path)
+        description_footer = self._build_description_footer(identifier, bundle_filename, repo_date, archive_date)
 
-        # Prepare subject tags
+        if self.repo_data.get("description"):
+            return f"<br/>{self.repo_data['description']}<br/><br/>{readme_description}{description_footer}"
+        else:
+            return f"{readme_description}{description_footer}"
+
+    def _build_subject_tags(self, bundle_only, includes_releases, includes_all_branches, specific_branch):
+        """Build subject tags for Internet Archive metadata"""
         subject_tags = [
             "git",
             "code",
@@ -2334,18 +2302,17 @@ class GitArchiver:
         if self.repo_data.get("language"):
             subject_tags.append(self.repo_data["language"].lower())
 
-        # Add topics into the subject tags
         if self.repo_data.get("topics"):
             subject_tags.extend(self.repo_data["topics"])
 
-        # Prepare metadata - use first commit date for date field
-        # Construct repo owner URL
+        return subject_tags
+
+    def _build_base_metadata(self, item_name, description, repo_date, subject_tags, identifier):
+        """Build base metadata dictionary for Internet Archive"""
         from urllib.parse import urlparse
 
         parsed_url = urlparse(self.repo_data["url"])
-        repo_owner_url = (
-            f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
-        )
+        repo_owner_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
 
         metadata = {
             "title": item_name,
@@ -2353,7 +2320,7 @@ class GitArchiver:
             "collection": "opensource_media",
             "description": description,
             "creator": self.repo_data["owner"],
-            "date": repo_date.strftime("%Y-%m-%d"),  # First commit date
+            "date": repo_date.strftime("%Y-%m-%d"),
             "year": repo_date.year,
             "subject": ";".join(subject_tags),
             "repourl": self.repo_data["url"],
@@ -2369,7 +2336,10 @@ class GitArchiver:
         if license_url:
             metadata["licenseurl"] = license_url
 
-        # Add branch information
+        return metadata
+
+    def _add_branch_metadata(self, metadata, includes_all_branches, specific_branch):
+        """Add branch-related metadata"""
         if includes_all_branches:
             metadata["allbranches"] = "true"
             metadata["branchcount"] = str(self.repo_data.get("branch_count", 0))
@@ -2378,16 +2348,15 @@ class GitArchiver:
         elif specific_branch:
             metadata["specificbranch"] = specific_branch
 
-        # Only add bundleonly when it's actually bundle-only mode
+    def _add_optional_metadata(self, metadata, bundle_only, includes_releases, custom_metadata):
+        """Add optional metadata fields"""
         if bundle_only:
             metadata["bundleonly"] = "true"
 
-        # Add release information - only when releases are actually included
         if includes_releases:
             metadata["includesreleases"] = "true"
             metadata["releasecount"] = str(self.repo_data.get("downloaded_releases", 0))
 
-        # Add additional metadata from API if available
         if self.repo_data.get("stars") is not None:
             metadata["stars"] = str(self.repo_data["stars"])
         if self.repo_data.get("forks") is not None:
@@ -2402,203 +2371,228 @@ class GitArchiver:
             metadata["repoarchived"] = str(self.repo_data["archived"])
         if self.repo_data.get("fork"):
             metadata["isfork"] = str(self.repo_data["fork"])
-        # Only add repoprivate when the repo is actually private
         if self.repo_data.get("private"):
             metadata["repoprivate"] = "true"
 
-        # Add any additional custom metadata
         if custom_metadata:
             metadata.update(custom_metadata)
 
-        if self.verbose:
-            print(f"\nUploading to Internet Archive")
-            print(f"   Identifier: {identifier}")
-            print(f"   Title: {item_name}")
-            print(
-                f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)"
-            )
-            print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
-            print(f"   Contents: {', '.join(archive_details)}")
+    def _print_upload_info(self, identifier, item_name, repo_date, archive_date, archive_details, metadata):
+        """Print upload information to console"""
+        if not self.verbose:
+            return
 
-            if metadata.get("stars"):
-                print(f"   Stars: {metadata['stars']}")
-            if metadata.get("forks"):
-                print(f"   Forks: {metadata['forks']}")
-            if metadata.get("language"):
-                print(f"   Primary Language: {metadata['language']}")
-            if metadata.get("license"):
-                print(f"   License: {metadata['license']}")
-                if metadata.get("licenseurl"):
-                    print(f"   License URL: {metadata['licenseurl']}")
+        print("\nUploading to Internet Archive")
+        print(f"   Identifier: {identifier}")
+        print(f"   Title: {item_name}")
+        print(f"   Repository Date: {repo_date.strftime('%Y-%m-%d')} (first commit)")
+        print(f"   Archive Date: {archive_date.strftime('%Y-%m-%d')} (today)")
+        print(f"   Contents: {', '.join(archive_details)}")
+
+        if metadata.get("stars"):
+            print(f"   Stars: {metadata['stars']}")
+        if metadata.get("forks"):
+            print(f"   Forks: {metadata['forks']}")
+        if metadata.get("language"):
+            print(f"   Primary Language: {metadata['language']}")
+        if metadata.get("license"):
+            print(f"   License: {metadata['license']}")
+            if metadata.get("licenseurl"):
+                print(f"   License URL: {metadata['licenseurl']}")
+
+    def _prepare_base_files(self, repo_path, create_repo_info):
+        """Prepare base files (bundle, info, avatar) for upload"""
+        files_to_upload = {}
+
+        bundle_path = self.create_git_bundle(repo_path)
+        bundle_filename = os.path.basename(bundle_path) if bundle_path else None
+
+        info_path = None
+        info_filename = None
+        if create_repo_info:
+            info_path = self.create_repo_info_file(repo_path)
+            info_filename = os.path.basename(info_path) if info_path else None
+
+        if bundle_path and os.path.exists(bundle_path):
+            files_to_upload[bundle_filename] = bundle_path
+
+        if info_path and os.path.exists(info_path):
+            files_to_upload[info_filename] = info_path
+
+        username = self.repo_data["owner"]
+        for ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+            avatar_filename = f"{username}{ext}"
+            avatar_path = os.path.join(repo_path, avatar_filename)
+            if os.path.exists(avatar_path):
+                files_to_upload[avatar_filename] = avatar_path
+                break
+
+        return files_to_upload, bundle_filename
+
+    def _add_repository_files(self, repo_path, files_to_upload, bundle_only, includes_releases):
+        """Add repository files to upload dictionary"""
+        if not bundle_only:
+            if self.verbose:
+                print("Collecting all repository files...")
+            repo_files = self.get_all_files(repo_path)
+            files_to_upload.update(repo_files)
+        else:
+            if includes_releases and self.repo_data.get("releases_dir_name"):
+                releases_dir_name = self.repo_data["releases_dir_name"]
+                releases_path = os.path.join(repo_path, releases_dir_name)
+                if os.path.exists(releases_path):
+                    if self.verbose:
+                        print(f"Including releases directory in bundle-only upload: {releases_dir_name}/")
+                    for root, dirs, files in os.walk(releases_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            relative_path = os.path.relpath(file_path, repo_path)
+                            relative_path = relative_path.replace(os.sep, "/")
+                            files_to_upload[relative_path] = file_path
+
+    def _print_upload_components(self, files_to_upload, bundle_only, bundle_filename, info_filename,
+                                 includes_all_branches, includes_releases, username):
+        """Print information about upload components"""
+        if not self.verbose:
+            return
+
+        if bundle_only:
+            print("Uploading git bundle to Internet Archive")
+            if includes_releases:
+                print("   (including releases directory)")
+        else:
+            print(f"Uploading {len(files_to_upload)} files to Internet Archive")
+        print("This may take some time depending on repository size and connection speed")
+
+        components = []
+        if bundle_filename:
+            components.append("Git bundle")
+        if info_filename:
+            components.append("Repository info file")
+
+        avatar_included = any(
+            f.startswith(username) and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+            for f in files_to_upload.keys()
+        )
+        if avatar_included:
+            components.append("User avatar")
+
+        if not bundle_only:
+            if includes_all_branches:
+                branches_dir = self.repo_data.get("branches_dir_name")
+                if branches_dir:
+                    branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
+                    if branch_files:
+                        non_default_count = len([
+                            b for b in self.repo_data.get("branches", [])
+                            if b != self.repo_data.get("default_branch")
+                        ])
+                        components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
+            if includes_releases and self.repo_data.get("releases_dir_name"):
+                release_files = [
+                    f for f in files_to_upload.keys()
+                    if f.startswith(self.repo_data["releases_dir_name"])
+                ]
+                if release_files:
+                    components.append(f"Releases directory ({len(release_files)} files)")
+            components.append("Repository files")
+        else:
+            if includes_releases and self.repo_data.get("releases_dir_name"):
+                release_files = [
+                    f for f in files_to_upload.keys()
+                    if f.startswith(self.repo_data["releases_dir_name"])
+                ]
+                if release_files:
+                    components.append(f"Releases directory ({len(release_files)} files)")
+
+        print(f"   Components: {', '.join(components)}")
+
+    def _get_ia_credentials(self):
+        """Get Internet Archive credentials from config file"""
+        access_key = None
+        secret_key = None
 
         try:
-            # Get or create the item
-            item = internetarchive.get_item(identifier)
+            parsed_ia_config = parse_config_file(self.ia_config_path)[2]["s3"]
+            access_key = parsed_ia_config.get("access")
+            secret_key = parsed_ia_config.get("secret")
+        except Exception as e:
+            if self.verbose:
+                print(f"Note: Using default IA credentials (could not parse config: {e})")
 
+        return access_key, secret_key
+
+    def upload_to_ia(
+        self,
+        repo_path,
+        custom_metadata=None,
+        includes_releases=False,
+        includes_all_branches=False,
+        specific_branch=None,
+        bundle_only=False,
+        create_repo_info=True,
+    ):
+        """Upload the repository to the Internet Archive"""
+        # Generate timestamps
+        archive_date = datetime.now()
+        repo_date = self.repo_data.get("first_commit_date", archive_date)
+
+        # Generate identifier and names
+        identifier = self._generate_upload_identifier(archive_date)
+        item_name = self._generate_item_name()
+        bundle_filename = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
+
+        # Build archive details and description
+        archive_details = self._build_archive_details(
+            bundle_only, includes_all_branches, specific_branch, includes_releases
+        )
+        description = self._build_full_description(
+            repo_path, identifier, bundle_filename, repo_date, archive_date
+        )
+
+        # Build metadata
+        subject_tags = self._build_subject_tags(
+            bundle_only, includes_releases, includes_all_branches, specific_branch
+        )
+        metadata = self._build_base_metadata(item_name, description, repo_date, subject_tags, identifier)
+        self._add_branch_metadata(metadata, includes_all_branches, specific_branch)
+        self._add_optional_metadata(metadata, bundle_only, includes_releases, custom_metadata)
+
+        # Print upload information
+        self._print_upload_info(identifier, item_name, repo_date, archive_date, archive_details, metadata)
+
+        try:
+            # Check if item already exists
+            item = internetarchive.get_item(identifier)
             if item.exists:
                 if self.verbose:
-                    print(
-                        "\nThis repository version already exists on the Internet Archive"
-                    )
+                    print("\nThis repository version already exists on the Internet Archive")
                     print(f"URL: https://archive.org/details/{identifier}")
                 return identifier, metadata
 
-            # Create the bundle file first
-            bundle_path = self.create_git_bundle(repo_path)
-            bundle_filename = os.path.basename(bundle_path) if bundle_path else None
+            # Prepare files for upload
+            files_to_upload, bundle_filename = self._prepare_base_files(repo_path, create_repo_info)
+            info_filename = next((k for k in files_to_upload.keys() if k.endswith("_info.json")), None)
 
-            # Create repository info file
-            info_path = None
-            info_filename = None
-            if create_repo_info:
-                info_path = self.create_repo_info_file(repo_path)
-                info_filename = os.path.basename(info_path) if info_path else None
+            # Add repository files
+            self._add_repository_files(repo_path, files_to_upload, bundle_only, includes_releases)
 
-            # Prepare files for upload - use dictionary format for proper naming
-            files_to_upload = {}
-
-            # Add bundle file first
-            if bundle_path and os.path.exists(bundle_path):
-                files_to_upload[bundle_filename] = bundle_path
-
-            # Add repo info file
-            if info_path and os.path.exists(info_path):
-                files_to_upload[info_filename] = info_path
-
-            # Always check for and include avatar file
+            # Print upload components
             username = self.repo_data["owner"]
-            for ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
-                avatar_filename = f"{username}{ext}"
-                avatar_path = os.path.join(repo_path, avatar_filename)
-                if os.path.exists(avatar_path):
-                    files_to_upload[avatar_filename] = avatar_path
-                    if self.verbose and bundle_only:
-                        print(f"   Including user avatar: {avatar_filename}")
-                    break
+            self._print_upload_components(
+                files_to_upload, bundle_only, bundle_filename, info_filename,
+                includes_all_branches, includes_releases, username
+            )
 
-            # If not bundle-only mode, add all repository files
-            if not bundle_only:
-                if self.verbose:
-                    print("Collecting all repository files...")
-                repo_files = self.get_all_files(repo_path)
-                # Add all repository files with preserved directory structure
-                files_to_upload.update(repo_files)
-            else:
-                if includes_releases and self.repo_data.get("releases_dir_name"):
-                    releases_dir_name = self.repo_data["releases_dir_name"]
-                    releases_path = os.path.join(repo_path, releases_dir_name)
-                    if os.path.exists(releases_path):
-                        if self.verbose:
-                            print(
-                                f"Including releases directory in bundle-only upload: {releases_dir_name}/"
-                            )
-                        # Get all files in the releases directory
-                        for root, dirs, files in os.walk(releases_path):
-                            for file in files:
-                                file_path = os.path.join(root, file)
-                                relative_path = os.path.relpath(file_path, repo_path)
-                                relative_path = relative_path.replace(os.sep, "/")
-                                files_to_upload[relative_path] = file_path
-
-            if self.verbose:
-                if bundle_only:
-                    print("Uploading git bundle to Internet Archive")
-                    if includes_releases:
-                        print("   (including releases directory)")
-                else:
-                    print(f"Uploading {len(files_to_upload)} files to Internet Archive")
-                print(
-                    "This may take some time depending on repository size and connection speed"
-                )
-
-                # Show what major components are being uploaded
-                components = []
-                if bundle_filename:
-                    components.append("Git bundle")
-                if info_filename:
-                    components.append("Repository info file")
-
-                # Check if avatar is included
-                avatar_included = any(
-                    f.startswith(username)
-                    and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
-                    for f in files_to_upload.keys()
-                )
-                if avatar_included:
-                    components.append("User avatar")
-
-                if not bundle_only:
-                    if includes_all_branches:
-                        branches_dir = self.repo_data.get("branches_dir_name")
-                        if branches_dir:
-                            branch_files = [
-                                f
-                                for f in files_to_upload.keys()
-                                if f.startswith(branches_dir)
-                            ]
-                            if branch_files:
-                                non_default_count = len(
-                                    [
-                                        b
-                                        for b in self.repo_data.get("branches", [])
-                                        if b != self.repo_data.get("default_branch")
-                                    ]
-                                )
-                                components.append(
-                                    f"Branches directory ({non_default_count} branches in {branches_dir}/)"
-                                )
-                    if includes_releases and self.repo_data.get("releases_dir_name"):
-                        release_files = [
-                            f
-                            for f in files_to_upload.keys()
-                            if f.startswith(self.repo_data["releases_dir_name"])
-                        ]
-                        if release_files:
-                            components.append(
-                                f"Releases directory ({len(release_files)} files)"
-                            )
-                    if not bundle_only:
-                        components.append("Repository files")
-                    else:
-                        if includes_releases and self.repo_data.get(
-                            "releases_dir_name"
-                        ):
-                            release_files = [
-                                f
-                                for f in files_to_upload.keys()
-                                if f.startswith(self.repo_data["releases_dir_name"])
-                            ]
-                            if release_files:
-                                components.append(
-                                    f"Releases directory ({len(release_files)} files)"
-                                )
-
-                print(f"   Components: {', '.join(components)}")
-
-            # Parse internetarchive configuration file to get credentials
-            access_key = None
-            secret_key = None
-
-            try:
-                parsed_ia_config = parse_config_file(self.ia_config_path)[2]["s3"]
-                access_key = parsed_ia_config.get("access")
-                secret_key = parsed_ia_config.get("secret")
-            except Exception as e:
-                if self.verbose:
-                    print(
-                        f"Note: Using default IA credentials (could not parse config: {e})"
-                    )
-
-            # Upload all files at once with proper metadata and verbose output
+            # Get credentials and upload
+            access_key, secret_key = self._get_ia_credentials()
             upload_kwargs = {
                 "metadata": metadata,
-                "retries": 9001,  # Use high retry count
-                "request_kwargs": dict(timeout=(9001, 9001)),  # Use tuple timeout
-                "verbose": self.verbose,  # Enable verbose output
-                "delete": False,  # Don't delete local files after upload
+                "retries": 9001,
+                "request_kwargs": dict(timeout=(9001, 9001)),
+                "verbose": self.verbose,
+                "delete": False,
             }
-
-            # Add credentials if available
             if access_key and secret_key:
                 upload_kwargs["access_key"] = access_key
                 upload_kwargs["secret_key"] = secret_key
@@ -2606,12 +2600,10 @@ class GitArchiver:
             item.upload(files_to_upload, **upload_kwargs)
 
             if self.verbose:
-                print(f"\nUpload completed successfully!")
+                print("\nUpload completed successfully!")
                 print(f"   Archive URL: https://archive.org/details/{identifier}")
                 if bundle_filename:
-                    print(
-                        f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}"
-                    )
+                    print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
 
             return identifier, metadata
 

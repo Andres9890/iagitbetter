@@ -23,12 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install gettext on macOS
-        if: runner.os == 'macOS'
-        run: |
-          brew install gettext
-          brew link gettext --force
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:

@@ -1,10 +1,8 @@
-import json
 import os
 import shutil
 import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import requests_mock
 
@@ -12,8 +10,6 @@ from iagitbetter import __version__
 from iagitbetter.iagitbetter import GitArchiver
 
 from .constants import (
-    bitbucket_api_response,
-    gitea_api_response,
     github_api_response,
     gitlab_api_response,
 )
