@@ -372,7 +372,9 @@ def _parse_profile_url(url):
 
     if len(path_parts) != 1:
         print(f"Error: Invalid profile URL: {url}")
-        print("Profile URLs should have only one path component (username/organization)")
+        print(
+            "Profile URLs should have only one path component (username/organization)"
+        )
         return None, None
 
     username = path_parts[0]
@@ -409,19 +411,25 @@ def _apply_repository_filters(repositories, args, verbose):
     if args.skip_forks:
         filtered_repos = [r for r in filtered_repos if not r.get("fork", False)]
         if verbose:
-            print(f"   Filtered out {original_count - len(filtered_repos)} forked repositories")
+            print(
+                f"   Filtered out {original_count - len(filtered_repos)} forked repositories"
+            )
 
     if args.skip_archived:
         before_filter = len(filtered_repos)
         filtered_repos = [r for r in filtered_repos if not r.get("archived", False)]
         if verbose and before_filter != len(filtered_repos):
-            print(f"   Filtered out {before_filter - len(filtered_repos)} archived repositories")
+            print(
+                f"   Filtered out {before_filter - len(filtered_repos)} archived repositories"
+            )
 
     if args.skip_private:
         before_filter = len(filtered_repos)
         filtered_repos = [r for r in filtered_repos if not r.get("private", False)]
         if verbose and before_filter != len(filtered_repos):
-            print(f"   Filtered out {before_filter - len(filtered_repos)} private repositories")
+            print(
+                f"   Filtered out {before_filter - len(filtered_repos)} private repositories"
+            )
 
     if args.max_repos and len(filtered_repos) > args.max_repos:
         filtered_repos = filtered_repos[: args.max_repos]
@@ -431,7 +439,9 @@ def _apply_repository_filters(repositories, args, verbose):
     return filtered_repos, original_count
 
 
-def _print_profile_summary(username, original_count, filtered_repos, successful, failed, args, results):
+def _print_profile_summary(
+    username, original_count, filtered_repos, successful, failed, args, results
+):
     """Print profile archiving summary"""
     print("\n" + "=" * 60)
     print("PROFILE ARCHIVING SUMMARY")
@@ -500,7 +510,9 @@ def archive_profile(archiver, url, args, verbose):
         return []
 
     # Apply filters
-    filtered_repos, original_count = _apply_repository_filters(repositories, args, verbose)
+    filtered_repos, original_count = _apply_repository_filters(
+        repositories, args, verbose
+    )
 
     if verbose:
         print(f"\nWill archive {len(filtered_repos)} repositories")
@@ -528,11 +540,15 @@ def archive_profile(archiver, url, args, verbose):
             api_username=archiver.api_username,
         )
 
-        identifier, metadata = archive_single_repository(repo_archiver, clone_url, args, verbose)
+        identifier, metadata = archive_single_repository(
+            repo_archiver, clone_url, args, verbose
+        )
 
         if identifier:
             successful += 1
-            results.append({"repo": repo_name, "identifier": identifier, "success": True})
+            results.append(
+                {"repo": repo_name, "identifier": identifier, "success": True}
+            )
             if verbose:
                 print(f"  Successfully archived: {repo_name}")
                 print(f"   URL: https://archive.org/details/{identifier}")
@@ -548,7 +564,9 @@ def archive_profile(archiver, url, args, verbose):
             print()
 
     # Print summary
-    _print_profile_summary(username, original_count, filtered_repos, successful, failed, args, results)
+    _print_profile_summary(
+        username, original_count, filtered_repos, successful, failed, args, results
+    )
 
     return results
 
@@ -565,7 +583,9 @@ def _print_upload_results(identifier, metadata, archiver, args):
 
     # Show dates information
     if "first_commit_date" in archiver.repo_data:
-        print(f"First Commit Date: {archiver.repo_data['first_commit_date'].strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"First Commit Date: {archiver.repo_data['first_commit_date'].strftime('%Y-%m-%d %H:%M:%S')}"
+        )
     print(f"Archive Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Show additional metadata
@@ -614,7 +634,9 @@ def _print_archive_mode(archiver, args):
             print(f"   Default branch ({default_branch}): Files in root directory")
             other_branches = [b for b in branches if b != default_branch]
             if other_branches and branches_dir:
-                print(f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)")
+                print(
+                    f"   Other branches: {', '.join(other_branches)} (organized in {branches_dir}/)"
+                )
         elif args.branch:
             print(f"Branch: {args.branch} archived")
         if args.releases:

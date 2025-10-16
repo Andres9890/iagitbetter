@@ -1304,12 +1304,14 @@ class GitArchiver:
                 }
 
                 for asset in release.get("assets", []):
-                    release_data["assets"].append({
-                        "name": asset.get("name"),
-                        "download_url": asset.get("browser_download_url"),
-                        "size": asset.get("size"),
-                        "content_type": asset.get("content_type"),
-                    })
+                    release_data["assets"].append(
+                        {
+                            "name": asset.get("name"),
+                            "download_url": asset.get("browser_download_url"),
+                            "size": asset.get("size"),
+                            "content_type": asset.get("content_type"),
+                        }
+                    )
 
                 releases.append(release_data)
 
@@ -1356,11 +1358,13 @@ class GitArchiver:
                 }
 
                 for link in release.get("assets", {}).get("links", []):
-                    release_data["assets"].append({
-                        "name": link.get("name"),
-                        "download_url": link.get("url"),
-                        "link_type": link.get("link_type"),
-                    })
+                    release_data["assets"].append(
+                        {
+                            "name": link.get("name"),
+                            "download_url": link.get("url"),
+                            "link_type": link.get("link_type"),
+                        }
+                    )
 
                 releases.append(release_data)
 
@@ -1405,11 +1409,13 @@ class GitArchiver:
                 }
 
                 for asset in release.get("assets", []):
-                    release_data["assets"].append({
-                        "name": asset.get("name"),
-                        "download_url": asset.get("browser_download_url"),
-                        "size": asset.get("size"),
-                    })
+                    release_data["assets"].append(
+                        {
+                            "name": asset.get("name"),
+                            "download_url": asset.get("browser_download_url"),
+                            "size": asset.get("size"),
+                        }
+                    )
 
                 releases.append(release_data)
 
@@ -1453,11 +1459,13 @@ class GitArchiver:
                 }
 
                 for asset in release.get("assets", []):
-                    release_data["assets"].append({
-                        "name": asset.get("name"),
-                        "download_url": asset.get("browser_download_url"),
-                        "size": asset.get("size"),
-                    })
+                    release_data["assets"].append(
+                        {
+                            "name": asset.get("name"),
+                            "download_url": asset.get("browser_download_url"),
+                            "size": asset.get("size"),
+                        }
+                    )
 
                 releases.append(release_data)
 
@@ -1502,11 +1510,13 @@ class GitArchiver:
                 }
 
                 for asset in release.get("assets", []):
-                    release_data["assets"].append({
-                        "name": asset.get("name"),
-                        "download_url": asset.get("browser_download_url"),
-                        "size": asset.get("size"),
-                    })
+                    release_data["assets"].append(
+                        {
+                            "name": asset.get("name"),
+                            "download_url": asset.get("browser_download_url"),
+                            "size": asset.get("size"),
+                        }
+                    )
 
                 releases.append(release_data)
 
@@ -1529,7 +1539,9 @@ class GitArchiver:
                 releases = self._fetch_github_releases(owner, repo_name)
             elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
                 releases = self._fetch_gitlab_releases(domain, owner, repo_name)
-            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data["git_site"] in ["codeberg", "gitea"]:
+            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data[
+                "git_site"
+            ] in ["codeberg", "gitea"]:
                 releases = self._fetch_gitea_releases(domain, owner, repo_name)
             elif domain == "gitee.com" or self.repo_data["git_site"] == "gitee":
                 releases = self._fetch_gitee_releases(owner, repo_name)
@@ -2000,7 +2012,14 @@ class GitArchiver:
             return True
         return False
 
-    def _validate_file(self, file_path, relative_path, skipped_corrupted_files, skipped_unreadable_files, skipped_empty_files):
+    def _validate_file(
+        self,
+        file_path,
+        relative_path,
+        skipped_corrupted_files,
+        skipped_unreadable_files,
+        skipped_empty_files,
+    ):
         """Validate file for upload, return True if valid, False otherwise"""
         if not os.path.exists(file_path):
             skipped_corrupted_files.append((relative_path, "File does not exist"))
@@ -2028,10 +2047,14 @@ class GitArchiver:
             skipped_corrupted_files.append((relative_path, f"OS error: {str(e)}"))
             return False
         except PermissionError as e:
-            skipped_unreadable_files.append((relative_path, f"Permission denied: {str(e)}"))
+            skipped_unreadable_files.append(
+                (relative_path, f"Permission denied: {str(e)}")
+            )
             return False
         except Exception as e:
-            skipped_corrupted_files.append((relative_path, f"Unexpected error: {str(e)}"))
+            skipped_corrupted_files.append(
+                (relative_path, f"Unexpected error: {str(e)}")
+            )
             return False
 
         return True
@@ -2047,13 +2070,24 @@ class GitArchiver:
         else:
             return relative_path
 
-    def _print_skipped_files_summary(self, skipped_empty_files, skipped_corrupted_files,
-                                     skipped_unreadable_files, renamed_svg_files, renamed_bmp_files, total_files):
+    def _print_skipped_files_summary(
+        self,
+        skipped_empty_files,
+        skipped_corrupted_files,
+        skipped_unreadable_files,
+        renamed_svg_files,
+        renamed_bmp_files,
+        total_files,
+    ):
         """Print summary of skipped and renamed files"""
         if not self.verbose:
             return
 
-        total_skipped = len(skipped_empty_files) + len(skipped_corrupted_files) + len(skipped_unreadable_files)
+        total_skipped = (
+            len(skipped_empty_files)
+            + len(skipped_corrupted_files)
+            + len(skipped_unreadable_files)
+        )
 
         if total_skipped > 0:
             print("\n   File filtering summary:")
@@ -2069,7 +2103,9 @@ class GitArchiver:
                 print(f"     ... and {len(skipped_empty_files) - 5} more")
 
         if skipped_corrupted_files:
-            print(f"\n   Skipping {len(skipped_corrupted_files)} corrupted/problematic file(s):")
+            print(
+                f"\n   Skipping {len(skipped_corrupted_files)} corrupted/problematic file(s):"
+            )
             for corrupted_file, reason in skipped_corrupted_files[:5]:
                 print(f"     - {corrupted_file}: {reason}")
             if len(skipped_corrupted_files) > 5:
@@ -2083,14 +2119,18 @@ class GitArchiver:
                 print(f"     ... and {len(skipped_unreadable_files) - 5} more")
 
         if renamed_svg_files:
-            print(f"\n   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:")
+            print(
+                f"\n   Renaming {len(renamed_svg_files)} SVG file(s) to .svg.xml for IA compatibility:"
+            )
             for svg_file in renamed_svg_files[:5]:
                 print(f"     - {svg_file} → {svg_file}.xml")
             if len(renamed_svg_files) > 5:
                 print(f"     ... and {len(renamed_svg_files) - 5} more")
 
         if renamed_bmp_files:
-            print(f"\n   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:")
+            print(
+                f"\n   Renaming {len(renamed_bmp_files)} BMP file(s) to .bmp.bin for IA compatibility:"
+            )
             for bmp_file in renamed_bmp_files[:5]:
                 print(f"     - {bmp_file} → {bmp_file}.bin")
             if len(renamed_bmp_files) > 5:
@@ -2111,22 +2151,40 @@ class GitArchiver:
 
             for file in files:
                 file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, repo_path).replace(os.sep, "/")
+                relative_path = os.path.relpath(file_path, repo_path).replace(
+                    os.sep, "/"
+                )
 
-                if not self._validate_file(file_path, relative_path, skipped_corrupted_files,
-                                          skipped_unreadable_files, skipped_empty_files):
+                if not self._validate_file(
+                    file_path,
+                    relative_path,
+                    skipped_corrupted_files,
+                    skipped_unreadable_files,
+                    skipped_empty_files,
+                ):
                     continue
 
-                upload_name = self._get_upload_name(relative_path, renamed_svg_files, renamed_bmp_files)
+                upload_name = self._get_upload_name(
+                    relative_path, renamed_svg_files, renamed_bmp_files
+                )
                 files_to_upload[upload_name] = file_path
 
         # Print summary
-        self._print_skipped_files_summary(skipped_empty_files, skipped_corrupted_files,
-                                          skipped_unreadable_files, renamed_svg_files,
-                                          renamed_bmp_files, len(files_to_upload))
+        self._print_skipped_files_summary(
+            skipped_empty_files,
+            skipped_corrupted_files,
+            skipped_unreadable_files,
+            renamed_svg_files,
+            renamed_bmp_files,
+            len(files_to_upload),
+        )
 
         # Store skip statistics
-        total_skipped = len(skipped_empty_files) + len(skipped_corrupted_files) + len(skipped_unreadable_files)
+        total_skipped = (
+            len(skipped_empty_files)
+            + len(skipped_corrupted_files)
+            + len(skipped_unreadable_files)
+        )
         self.repo_data["skipped_files"] = {
             "empty": len(skipped_empty_files),
             "corrupted": len(skipped_corrupted_files),
@@ -2223,7 +2281,9 @@ class GitArchiver:
         """Generate item name for Internet Archive upload"""
         return f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
 
-    def _build_archive_details(self, bundle_only, includes_all_branches, specific_branch, includes_releases):
+    def _build_archive_details(
+        self, bundle_only, includes_all_branches, specific_branch, includes_releases
+    ):
         """Build list of archive details for description"""
         archive_details = []
         if bundle_only:
@@ -2246,7 +2306,9 @@ class GitArchiver:
 
         return archive_details
 
-    def _build_description_footer(self, identifier, bundle_filename, repo_date, archive_date):
+    def _build_description_footer(
+        self, identifier, bundle_filename, repo_date, archive_date
+    ):
         """Build the footer section for repository description"""
         return f"""<br/><hr/>
         <p><strong>Repository Information:</strong></p>
@@ -2266,17 +2328,23 @@ class GitArchiver:
         <pre><code>git clone {bundle_filename}</code></pre>
         """
 
-    def _build_full_description(self, repo_path, identifier, bundle_filename, repo_date, archive_date):
+    def _build_full_description(
+        self, repo_path, identifier, bundle_filename, repo_date, archive_date
+    ):
         """Build the full description for Internet Archive upload"""
         readme_description = self.get_description_from_readme(repo_path)
-        description_footer = self._build_description_footer(identifier, bundle_filename, repo_date, archive_date)
+        description_footer = self._build_description_footer(
+            identifier, bundle_filename, repo_date, archive_date
+        )
 
         if self.repo_data.get("description"):
             return f"<br/>{self.repo_data['description']}<br/><br/>{readme_description}{description_footer}"
         else:
             return f"{readme_description}{description_footer}"
 
-    def _build_subject_tags(self, bundle_only, includes_releases, includes_all_branches, specific_branch):
+    def _build_subject_tags(
+        self, bundle_only, includes_releases, includes_all_branches, specific_branch
+    ):
         """Build subject tags for Internet Archive metadata"""
         subject_tags = [
             "git",
@@ -2307,12 +2375,16 @@ class GitArchiver:
 
         return subject_tags
 
-    def _build_base_metadata(self, item_name, description, repo_date, subject_tags, identifier):
+    def _build_base_metadata(
+        self, item_name, description, repo_date, subject_tags, identifier
+    ):
         """Build base metadata dictionary for Internet Archive"""
         from urllib.parse import urlparse
 
         parsed_url = urlparse(self.repo_data["url"])
-        repo_owner_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
+        repo_owner_url = (
+            f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
+        )
 
         metadata = {
             "title": item_name,
@@ -2348,7 +2420,9 @@ class GitArchiver:
         elif specific_branch:
             metadata["specificbranch"] = specific_branch
 
-    def _add_optional_metadata(self, metadata, bundle_only, includes_releases, custom_metadata):
+    def _add_optional_metadata(
+        self, metadata, bundle_only, includes_releases, custom_metadata
+    ):
         """Add optional metadata fields"""
         if bundle_only:
             metadata["bundleonly"] = "true"
@@ -2377,7 +2451,9 @@ class GitArchiver:
         if custom_metadata:
             metadata.update(custom_metadata)
 
-    def _print_upload_info(self, identifier, item_name, repo_date, archive_date, archive_details, metadata):
+    def _print_upload_info(
+        self, identifier, item_name, repo_date, archive_date, archive_details, metadata
+    ):
         """Print upload information to console"""
         if not self.verbose:
             return
@@ -2429,7 +2505,9 @@ class GitArchiver:
 
         return files_to_upload, bundle_filename
 
-    def _add_repository_files(self, repo_path, files_to_upload, bundle_only, includes_releases):
+    def _add_repository_files(
+        self, repo_path, files_to_upload, bundle_only, includes_releases
+    ):
         """Add repository files to upload dictionary"""
         if not bundle_only:
             if self.verbose:
@@ -2442,7 +2520,9 @@ class GitArchiver:
                 releases_path = os.path.join(repo_path, releases_dir_name)
                 if os.path.exists(releases_path):
                     if self.verbose:
-                        print(f"Including releases directory in bundle-only upload: {releases_dir_name}/")
+                        print(
+                            f"Including releases directory in bundle-only upload: {releases_dir_name}/"
+                        )
                     for root, dirs, files in os.walk(releases_path):
                         for file in files:
                             file_path = os.path.join(root, file)
@@ -2450,8 +2530,16 @@ class GitArchiver:
                             relative_path = relative_path.replace(os.sep, "/")
                             files_to_upload[relative_path] = file_path
 
-    def _print_upload_components(self, files_to_upload, bundle_only, bundle_filename, info_filename,
-                                 includes_all_branches, includes_releases, username):
+    def _print_upload_components(
+        self,
+        files_to_upload,
+        bundle_only,
+        bundle_filename,
+        info_filename,
+        includes_all_branches,
+        includes_releases,
+        username,
+    ):
         """Print information about upload components"""
         if not self.verbose:
             return
@@ -2462,7 +2550,9 @@ class GitArchiver:
                 print("   (including releases directory)")
         else:
             print(f"Uploading {len(files_to_upload)} files to Internet Archive")
-        print("This may take some time depending on repository size and connection speed")
+        print(
+            "This may take some time depending on repository size and connection speed"
+        )
 
         components = []
         if bundle_filename:
@@ -2471,7 +2561,8 @@ class GitArchiver:
             components.append("Repository info file")
 
         avatar_included = any(
-            f.startswith(username) and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
+            f.startswith(username)
+            and f.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp"))
             for f in files_to_upload.keys()
         )
         if avatar_included:
@@ -2481,29 +2572,42 @@ class GitArchiver:
             if includes_all_branches:
                 branches_dir = self.repo_data.get("branches_dir_name")
                 if branches_dir:
-                    branch_files = [f for f in files_to_upload.keys() if f.startswith(branches_dir)]
+                    branch_files = [
+                        f for f in files_to_upload.keys() if f.startswith(branches_dir)
+                    ]
                     if branch_files:
-                        non_default_count = len([
-                            b for b in self.repo_data.get("branches", [])
-                            if b != self.repo_data.get("default_branch")
-                        ])
-                        components.append(f"Branches directory ({non_default_count} branches in {branches_dir}/)")
+                        non_default_count = len(
+                            [
+                                b
+                                for b in self.repo_data.get("branches", [])
+                                if b != self.repo_data.get("default_branch")
+                            ]
+                        )
+                        components.append(
+                            f"Branches directory ({non_default_count} branches in {branches_dir}/)"
+                        )
             if includes_releases and self.repo_data.get("releases_dir_name"):
                 release_files = [
-                    f for f in files_to_upload.keys()
+                    f
+                    for f in files_to_upload.keys()
                     if f.startswith(self.repo_data["releases_dir_name"])
                 ]
                 if release_files:
-                    components.append(f"Releases directory ({len(release_files)} files)")
+                    components.append(
+                        f"Releases directory ({len(release_files)} files)"
+                    )
             components.append("Repository files")
         else:
             if includes_releases and self.repo_data.get("releases_dir_name"):
                 release_files = [
-                    f for f in files_to_upload.keys()
+                    f
+                    for f in files_to_upload.keys()
                     if f.startswith(self.repo_data["releases_dir_name"])
                 ]
                 if release_files:
-                    components.append(f"Releases directory ({len(release_files)} files)")
+                    components.append(
+                        f"Releases directory ({len(release_files)} files)"
+                    )
 
         print(f"   Components: {', '.join(components)}")
 
@@ -2518,7 +2622,9 @@ class GitArchiver:
             secret_key = parsed_ia_config.get("secret")
         except Exception as e:
             if self.verbose:
-                print(f"Note: Using default IA credentials (could not parse config: {e})")
+                print(
+                    f"Note: Using default IA credentials (could not parse config: {e})"
+                )
 
         return access_key, secret_key
 
@@ -2540,7 +2646,9 @@ class GitArchiver:
         # Generate identifier and names
         identifier = self._generate_upload_identifier(archive_date)
         item_name = self._generate_item_name()
-        bundle_filename = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
+        bundle_filename = (
+            f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
+        )
 
         # Build archive details and description
         archive_details = self._build_archive_details(
@@ -2554,34 +2662,53 @@ class GitArchiver:
         subject_tags = self._build_subject_tags(
             bundle_only, includes_releases, includes_all_branches, specific_branch
         )
-        metadata = self._build_base_metadata(item_name, description, repo_date, subject_tags, identifier)
+        metadata = self._build_base_metadata(
+            item_name, description, repo_date, subject_tags, identifier
+        )
         self._add_branch_metadata(metadata, includes_all_branches, specific_branch)
-        self._add_optional_metadata(metadata, bundle_only, includes_releases, custom_metadata)
+        self._add_optional_metadata(
+            metadata, bundle_only, includes_releases, custom_metadata
+        )
 
         # Print upload information
-        self._print_upload_info(identifier, item_name, repo_date, archive_date, archive_details, metadata)
+        self._print_upload_info(
+            identifier, item_name, repo_date, archive_date, archive_details, metadata
+        )
 
         try:
             # Check if item already exists
             item = internetarchive.get_item(identifier)
             if item.exists:
                 if self.verbose:
-                    print("\nThis repository version already exists on the Internet Archive")
+                    print(
+                        "\nThis repository version already exists on the Internet Archive"
+                    )
                     print(f"URL: https://archive.org/details/{identifier}")
                 return identifier, metadata
 
             # Prepare files for upload
-            files_to_upload, bundle_filename = self._prepare_base_files(repo_path, create_repo_info)
-            info_filename = next((k for k in files_to_upload.keys() if k.endswith("_info.json")), None)
+            files_to_upload, bundle_filename = self._prepare_base_files(
+                repo_path, create_repo_info
+            )
+            info_filename = next(
+                (k for k in files_to_upload.keys() if k.endswith("_info.json")), None
+            )
 
             # Add repository files
-            self._add_repository_files(repo_path, files_to_upload, bundle_only, includes_releases)
+            self._add_repository_files(
+                repo_path, files_to_upload, bundle_only, includes_releases
+            )
 
             # Print upload components
             username = self.repo_data["owner"]
             self._print_upload_components(
-                files_to_upload, bundle_only, bundle_filename, info_filename,
-                includes_all_branches, includes_releases, username
+                files_to_upload,
+                bundle_only,
+                bundle_filename,
+                info_filename,
+                includes_all_branches,
+                includes_releases,
+                username,
             )
 
             # Get credentials and upload
@@ -2603,7 +2730,9 @@ class GitArchiver:
                 print("\nUpload completed successfully!")
                 print(f"   Archive URL: https://archive.org/details/{identifier}")
                 if bundle_filename:
-                    print(f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}")
+                    print(
+                        f"   Bundle download: https://archive.org/download/{identifier}/{bundle_filename}"
+                    )
 
             return identifier, metadata
 
