@@ -2341,8 +2341,11 @@ class GitArchiver:
         # Prepare metadata - use first commit date for date field
         # Construct repo owner URL
         from urllib.parse import urlparse
+
         parsed_url = urlparse(self.repo_data["url"])
-        repo_owner_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
+        repo_owner_url = (
+            f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
+        )
 
         metadata = {
             "title": item_name,
