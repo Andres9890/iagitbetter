@@ -2339,6 +2339,11 @@ class GitArchiver:
             subject_tags.extend(self.repo_data["topics"])
 
         # Prepare metadata - use first commit date for date field
+        # Construct repo owner URL
+        from urllib.parse import urlparse
+        parsed_url = urlparse(self.repo_data["url"])
+        repo_owner_url = f"{parsed_url.scheme}://{parsed_url.netloc}/{self.repo_data['owner']}"
+
         metadata = {
             "title": item_name,
             "mediatype": "software",
@@ -2348,7 +2353,8 @@ class GitArchiver:
             "date": repo_date.strftime("%Y-%m-%d"),  # First commit date
             "year": repo_date.year,
             "subject": ";".join(subject_tags),
-            "originalrepo": self.repo_data["url"],
+            "repourl": self.repo_data["url"],
+            "repoowner": repo_owner_url,
             "gitsite": self.repo_data["git_site"],
             "language": self.repo_data.get("language", "Unknown"),
             "identifier": identifier,

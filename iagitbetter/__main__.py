@@ -143,7 +143,7 @@ Key improvements over iagitup:
   - Uploads complete file structure (not just bundle)
   - Preserves important directories (.github/, .gitlab/, .gitea/)
   - Clean naming: {owner} - {repo}
-  - Adds originalrepo and gitsite metadata
+  - Adds repourl, repoowner, and gitsite metadata
   - Preserves directory structure
   - Uses archive date for identifier consistency
   - Records first commit date as repository date
@@ -593,7 +593,8 @@ def main(argv=None):
                 print(f"Title: {metadata['title']}")
                 print(f"Identifier: {identifier}")
                 print(f"Git Provider: {metadata['gitsite']}")
-                print(f"Original Repository: {metadata['originalrepo']}")
+                print(f"Repository URL: {metadata['repourl']}")
+                print(f"Repository Owner: {metadata['repoowner']}")
 
                 # Show dates information
                 if "first_commit_date" in archiver.repo_data:
