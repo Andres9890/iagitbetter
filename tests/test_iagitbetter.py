@@ -349,6 +349,305 @@ This is a test repository for iagitbetter.
         expected = {"url": "https://example.com", "time": "12:30:45"}
         self.assertEqual(result, expected)
 
+    def test_extract_repo_info_gist(self):
+        """Test extracting repository info from GitHub Gist URL"""
+        repo_url = "https://gist.github.com/testuser/abc123def456"
+        result = self.archiver.extract_repo_info(repo_url)
+
+        self.assertEqual(result["owner"], "testuser")
+        self.assertEqual(result["repo_name"], "abc123def456")
+        self.assertEqual(result["git_site"], "gist")
+        self.assertEqual(result["domain"], "gist.github.com")
+        self.assertEqual(result["full_name"], "testuser/abc123def456")
+
+    def test_extract_repo_info_gist_anonymous(self):
+        """Test extracting repository info from anonymous Gist URL"""
+        repo_url = "https://gist.github.com/abc123def456"
+        result = self.archiver.extract_repo_info(repo_url)
+
+        self.assertEqual(result["owner"], "unknown")
+        self.assertEqual(result["repo_name"], "abc123def456")
+        self.assertEqual(result["git_site"], "gist")
+
+    @requests_mock.Mocker()
+    def test_fetch_api_metadata_gist_without_comments(self, m):
+        """Test fetching metadata from GitHub Gist API without comments"""
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "abc123def456",
+        }
+
+        gist_api_response = {
+            "id": "abc123def456",
+            "url": "https://api.github.com/gists/abc123def456",
+            "html_url": "https://gist.github.com/testuser/abc123def456",
+            "git_pull_url": "https://gist.github.com/abc123def456.git",
+            "git_push_url": "https://gist.github.com/abc123def456.git",
+            "description": "Example gist for testing",
+            "public": True,
+            "created_at": "2021-01-01T00:00:00Z",
+            "updated_at": "2021-06-01T12:00:00Z",
+            "comments": 0,
+            "owner": {
+                "login": "testuser",
+                "id": 12345,
+                "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+            },
+            "files": {
+                "example.py": {
+                    "filename": "example.py",
+                    "type": "application/x-python",
+                    "language": "Python",
+                    "raw_url": "https://gist.githubusercontent.com/testuser/abc123def456/raw/example.py",
+                    "size": 256,
+                },
+                "README.md": {
+                    "filename": "README.md",
+                    "type": "text/markdown",
+                    "language": "Markdown",
+                    "raw_url": "https://gist.githubusercontent.com/testuser/abc123def456/raw/README.md",
+                    "size": 128,
+                },
+            },
+            "forks": [],
+        }
+
+        m.get(
+            "https://api.github.com/gists/abc123def456",
+            json=gist_api_response,
+        )
+
+        self.archiver._fetch_api_metadata()
+
+        self.assertEqual(
+            self.archiver.repo_data["description"], "Example gist for testing"
+        )
+        self.assertEqual(self.archiver.repo_data["gist_comments"], 0)
+        self.assertEqual(len(self.archiver.repo_data["gist_files"]), 2)
+        self.assertIn("example.py", self.archiver.repo_data["gist_files"])
+        self.assertIn("README.md", self.archiver.repo_data["gist_files"])
+        self.assertIn("Python", self.archiver.repo_data["language"])
+        self.assertEqual(self.archiver.repo_data["size"], 384)  # 256 + 128
+        self.assertEqual(self.archiver.repo_data["private"], False)
+        self.assertEqual(
+            self.archiver.repo_data["clone_url"],
+            "https://gist.github.com/abc123def456.git",
+        )
+
+    @requests_mock.Mocker()
+    def test_fetch_api_metadata_gist_with_comments(self, m):
+        """Test fetching metadata from GitHub Gist API with comments"""
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "xyz789abc123",
+        }
+
+        gist_api_response = {
+            "id": "xyz789abc123",
+            "url": "https://api.github.com/gists/xyz789abc123",
+            "html_url": "https://gist.github.com/testuser/xyz789abc123",
+            "git_pull_url": "https://gist.github.com/xyz789abc123.git",
+            "git_push_url": "https://gist.github.com/xyz789abc123.git",
+            "description": "Gist with comments",
+            "public": True,
+            "created_at": "2021-02-01T00:00:00Z",
+            "updated_at": "2021-07-01T12:00:00Z",
+            "comments": 5,
+            "owner": {
+                "login": "testuser",
+                "id": 12345,
+                "avatar_url": "https://avatars.githubusercontent.com/u/12345?v=4",
+            },
+            "files": {
+                "script.js": {
+                    "filename": "script.js",
+                    "type": "application/javascript",
+                    "language": "JavaScript",
+                    "raw_url": "https://gist.githubusercontent.com/testuser/xyz789abc123/raw/script.js",
+                    "size": 512,
+                }
+            },
+            "forks": [{"id": "fork1"}, {"id": "fork2"}],
+        }
+
+        m.get(
+            "https://api.github.com/gists/xyz789abc123",
+            json=gist_api_response,
+        )
+
+        self.archiver._fetch_api_metadata()
+
+        self.assertEqual(self.archiver.repo_data["description"], "Gist with comments")
+        self.assertEqual(self.archiver.repo_data["gist_comments"], 5)
+        self.assertEqual(len(self.archiver.repo_data["gist_files"]), 1)
+        self.assertIn("script.js", self.archiver.repo_data["gist_files"])
+        self.assertEqual(self.archiver.repo_data["language"], "JavaScript")
+        self.assertEqual(self.archiver.repo_data["forks"], 2)
+
+    @requests_mock.Mocker()
+    def test_fetch_gist_comments_with_comments(self, m):
+        """Test fetching comments from a GitHub Gist with comments"""
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "abc123def456",
+        }
+
+        comments_response = [
+            {
+                "id": 1,
+                "user": {"login": "commenter1"},
+                "body": "Great gist!",
+                "created_at": "2021-03-01T10:00:00Z",
+                "updated_at": "2021-03-01T10:00:00Z",
+                "author_association": "NONE",
+            },
+            {
+                "id": 2,
+                "user": {"login": "commenter2"},
+                "body": "Thanks for sharing this.",
+                "created_at": "2021-03-02T14:30:00Z",
+                "updated_at": "2021-03-02T14:30:00Z",
+                "author_association": "NONE",
+            },
+        ]
+
+        m.get(
+            "https://api.github.com/gists/abc123def456/comments",
+            json=comments_response,
+        )
+
+        comments = self.archiver.fetch_gist_comments()
+
+        self.assertEqual(len(comments), 2)
+        self.assertEqual(comments[0]["id"], 1)
+        self.assertEqual(comments[0]["user"], "commenter1")
+        self.assertEqual(comments[0]["body"], "Great gist!")
+        self.assertEqual(comments[1]["id"], 2)
+        self.assertEqual(comments[1]["user"], "commenter2")
+
+    @requests_mock.Mocker()
+    def test_fetch_gist_comments_without_comments(self, m):
+        """Test fetching comments from a GitHub Gist without comments"""
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "xyz789abc123",
+        }
+
+        m.get(
+            "https://api.github.com/gists/xyz789abc123/comments",
+            json=[],
+        )
+
+        comments = self.archiver.fetch_gist_comments()
+
+        self.assertEqual(len(comments), 0)
+
+    @requests_mock.Mocker()
+    def test_fetch_gist_comments_not_gist(self, m):
+        """Test fetch_gist_comments returns empty for non-gist repos"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
+
+        comments = self.archiver.fetch_gist_comments()
+
+        self.assertEqual(len(comments), 0)
+
+    @requests_mock.Mocker()
+    def test_save_gist_comments_with_comments(self, m):
+        """Test saving gist comments to a JSON file"""
+        temp_dir, repo_path = copy_test_repository_to_temp()
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "abc123def456",
+        }
+
+        comments_response = [
+            {
+                "id": 1,
+                "user": {"login": "commenter1"},
+                "body": "Great gist!",
+                "created_at": "2021-03-01T10:00:00Z",
+                "updated_at": "2021-03-01T10:00:00Z",
+                "author_association": "NONE",
+            }
+        ]
+
+        m.get(
+            "https://api.github.com/gists/abc123def456/comments",
+            json=comments_response,
+        )
+
+        comments_path = self.archiver.save_gist_comments(repo_path)
+
+        self.assertIsNotNone(comments_path)
+        self.assertTrue(os.path.exists(comments_path))
+        self.assertEqual(os.path.basename(comments_path), "abc123def456.comments.json")
+
+        # Verify the content
+        import json
+
+        with open(comments_path, "r", encoding="utf-8") as f:
+            saved_comments = json.load(f)
+
+        self.assertEqual(len(saved_comments), 1)
+        self.assertEqual(saved_comments[0]["user"], "commenter1")
+        self.assertEqual(saved_comments[0]["body"], "Great gist!")
+
+        shutil.rmtree(temp_dir)
+
+    @requests_mock.Mocker()
+    def test_save_gist_comments_without_comments(self, m):
+        """Test save_gist_comments returns None when there are no comments"""
+        temp_dir, repo_path = copy_test_repository_to_temp()
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": "gist",
+            "owner": "testuser",
+            "repo_name": "xyz789abc123",
+        }
+
+        m.get(
+            "https://api.github.com/gists/xyz789abc123/comments",
+            json=[],
+        )
+
+        comments_path = self.archiver.save_gist_comments(repo_path)
+
+        self.assertIsNone(comments_path)
+
+        shutil.rmtree(temp_dir)
+
+    @requests_mock.Mocker()
+    def test_save_gist_comments_not_gist(self, m):
+        """Test save_gist_comments returns None for non-gist repos"""
+        temp_dir, repo_path = copy_test_repository_to_temp()
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
+
+        comments_path = self.archiver.save_gist_comments(repo_path)
+
+        self.assertIsNone(comments_path)
+
+        shutil.rmtree(temp_dir)
+
 
 class ProfileArchiverTests(unittest.TestCase):
     """Tests for profile archiving functionality"""
