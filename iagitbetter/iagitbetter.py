@@ -2393,7 +2393,7 @@ class GitArchiver:
             "description": description,
             "creator": self.repo_data["owner"],
             "date": repo_date.strftime("%Y-%m-%d"),
-            "year": repo_date.year,
+            "year": str(repo_date.year),
             "subject": ";".join(subject_tags),
             "repourl": self.repo_data["url"],
             "repoowner": repo_owner_url,
