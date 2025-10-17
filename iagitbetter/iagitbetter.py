@@ -2724,7 +2724,14 @@ class GitArchiver:
                 upload_kwargs["access_key"] = access_key
                 upload_kwargs["secret_key"] = secret_key
 
-            item.upload(files_to_upload, **upload_kwargs)
+            info_files = {k: v for k, v in files_to_upload.items() if k.endswith('.info.json')}
+            other_files = {k: v for k, v in files_to_upload.items() if not k.endswith('.info.json')}
+
+            if info_files:
+                item.upload(info_files, **upload_kwargs)
+
+            if other_files:
+                item.upload(other_files, **upload_kwargs)
 
             if self.verbose:
                 print("\nUpload completed successfully!")
