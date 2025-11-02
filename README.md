@@ -72,11 +72,12 @@ iagitbetter <git_url_or_profile> [options]
 - `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
 - `--no-update-check` – skip checking for updates on PyPI
-- `--no-repo-info` - skip creating the repository info file
+- `--no-info-file` – skip creating the repository info JSON file
+- `--no-repo-info` – skip adding repository information to the Internet Archive item description
 
 ### Release Options
 
-- `--releases` – download releases from the repository (GitHub, GitLab, Codeberg, Gitea)
+- `--releases [N]` – download releases from the repository (GitHub, GitLab, Codeberg, Gitea). Optionally specify number of releases to download (e.g., `--releases 5` for 5 most recent releases)
 - `--all-releases` – download all releases (default: latest release only)
 - `--latest-release` – download only the latest release (default when `--releases` is used)
 
@@ -265,6 +266,12 @@ iagitbetter --git-provider-type gitlab \
 ```bash
 # Archive repository with latest release
 iagitbetter --releases https://github.com/user/repo
+
+# Archive repository with specific number of releases (e.g., 5 most recent)
+iagitbetter --releases 5 https://github.com/user/repo
+
+# Archive repository with specific number of releases (e.g., 10 most recent)
+iagitbetter --releases 10 https://github.com/user/repo
 
 # Archive repository with all releases
 iagitbetter --releases --all-releases https://github.com/user/repo

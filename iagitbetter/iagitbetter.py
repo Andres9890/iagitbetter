@@ -1650,7 +1650,7 @@ class GitArchiver:
                 print(f"   Could not save gist comments: {e}")
             return None
 
-    def download_releases(self, repo_path, all_releases=False):
+    def download_releases(self, repo_path, all_releases=False, num_releases=None):
         """Download releases to the repository directory"""
         if not self.repo_data.get("releases"):
             # Fetch releases if not already done
@@ -1665,6 +1665,11 @@ class GitArchiver:
         # Determine which releases to download
         if all_releases:
             releases_to_download = releases
+        elif num_releases is not None:
+            # Download specific number of releases
+            # Filter out drafts only
+            non_draft_releases = [r for r in releases if not r.get("draft", False)]
+            releases_to_download = non_draft_releases[:num_releases]
         else:
             # Download only the latest release (regardless of prerelease)
             # Filter out drafts only
@@ -2329,13 +2334,23 @@ class GitArchiver:
         """
 
     def _build_full_description(
-        self, repo_path, identifier, bundle_filename, repo_date, archive_date
+        self,
+        repo_path,
+        identifier,
+        bundle_filename,
+        repo_date,
+        archive_date,
+        include_repo_info=True,
     ):
         """Build the full description for Internet Archive upload"""
         readme_description = self.get_description_from_readme(repo_path)
-        description_footer = self._build_description_footer(
-            identifier, bundle_filename, repo_date, archive_date
-        )
+
+        if include_repo_info:
+            description_footer = self._build_description_footer(
+                identifier, bundle_filename, repo_date, archive_date
+            )
+        else:
+            description_footer = ""
 
         if self.repo_data.get("description"):
             return f"<br/>{self.repo_data['description']}<br/><br/>{readme_description}{description_footer}"
@@ -2632,6 +2647,7 @@ class GitArchiver:
         specific_branch=None,
         bundle_only=False,
         create_repo_info=True,
+        include_repo_info_in_description=True,
     ):
         """Upload the repository to the Internet Archive"""
         # Generate timestamps
@@ -2650,7 +2666,12 @@ class GitArchiver:
             bundle_only, includes_all_branches, specific_branch, includes_releases
         )
         description = self._build_full_description(
-            repo_path, identifier, bundle_filename, repo_date, archive_date
+            repo_path,
+            identifier,
+            bundle_filename,
+            repo_date,
+            archive_date,
+            include_repo_info_in_description,
         )
 
         # Build metadata

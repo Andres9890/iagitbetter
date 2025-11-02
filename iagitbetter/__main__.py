@@ -117,6 +117,7 @@ Examples:
   %(prog)s --all-branches https://github.com/user/repo
   %(prog)s --branch develop https://github.com/user/repo
   %(prog)s --all-branches --releases --all-releases https://github.com/user/repo
+  %(prog)s --no-info-file https://github.com/user/repo
   %(prog)s --no-repo-info https://github.com/user/repo
 
   # User/Organization profile archiving
@@ -186,9 +187,14 @@ Key improvements over iagitup:
         help="Skip checking for updates on PyPI",
     )
     parser.add_argument(
-        "--no-repo-info",
+        "--no-info-file",
         action="store_true",
         help="Skip creating the repository info JSON file",
+    )
+    parser.add_argument(
+        "--no-repo-info",
+        action="store_true",
+        help="Skip adding repository information to the Internet Archive item description",
     )
 
     release_group = parser.add_argument_group(
@@ -196,8 +202,12 @@ Key improvements over iagitup:
     )
     release_group.add_argument(
         "--releases",
-        action="store_true",
-        help="Download releases from the repository (GitHub, GitLab, etc)",
+        nargs="?",
+        const=True,
+        type=lambda x: True if x is None else int(x),
+        default=False,
+        metavar="N",
+        help="Download releases from the repository (GitHub, GitLab, etc). Optionally specify number of releases to download (e.g., --releases 5)",
     )
     release_group.add_argument(
         "--all-releases", action="store_true", help="Download all releases"
@@ -310,13 +320,13 @@ def _build_archive_components_list(args):
             else:
                 archive_components.append("Latest release")
 
-    if not args.no_repo_info:
+    if not args.no_info_file:
         archive_components.append("Repository info file")
 
     return archive_components
 
 
-def archive_single_repository(archiver, url, args, verbose):
+def archive_single_repository(archiver, url, args, verbose, num_releases=None):
     """Archive a single repository"""
     try:
         # Extract repository information
@@ -343,7 +353,9 @@ def archive_single_repository(archiver, url, args, verbose):
         if args.releases:
             if verbose:
                 print("Downloading releases...")
-            archiver.download_releases(repo_path, all_releases=args.all_releases)
+            archiver.download_releases(
+                repo_path, all_releases=args.all_releases, num_releases=num_releases
+            )
 
         # Upload to Internet Archive
         identifier, metadata = archiver.upload_to_ia(
@@ -353,7 +365,8 @@ def archive_single_repository(archiver, url, args, verbose):
             includes_all_branches=args.all_branches,
             specific_branch=args.branch,
             bundle_only=not args.all_files,
-            create_repo_info=not args.no_repo_info,
+            create_repo_info=not args.no_info_file,
+            include_repo_info_in_description=not args.no_repo_info,
         )
 
         return identifier, metadata
@@ -479,7 +492,7 @@ def _print_profile_summary(
     print("=" * 60)
 
 
-def archive_profile(archiver, url, args, verbose):
+def archive_profile(archiver, url, args, verbose, num_releases=None):
     """Archive all repositories from a user/organization profile"""
     # Parse profile URL
     username, domain = _parse_profile_url(url)
@@ -541,7 +554,7 @@ def archive_profile(archiver, url, args, verbose):
         )
 
         identifier, metadata = archive_single_repository(
-            repo_archiver, clone_url, args, verbose
+            repo_archiver, clone_url, args, verbose, num_releases=num_releases
         )
 
         if identifier:
@@ -663,9 +676,15 @@ def main(argv=None):
         print("Error: Cannot specify both --all-branches and --branch")
         sys.exit(1)
 
-    if args.releases and not args.all_releases and not args.latest_release:
-        # Default to latest release when --releases is specified without other options
-        args.latest_release = True
+    # Handle releases argument
+    num_releases = None
+    if args.releases:
+        if isinstance(args.releases, int):
+            num_releases = args.releases
+        elif args.releases is True:
+            if not args.all_releases and not args.latest_release:
+                # Default to latest release when --releases is specified without other options
+                args.latest_release = True
 
     # Create archiver instance with verbose setting and self-hosted parameters
     verbose = not args.quiet
@@ -698,11 +717,11 @@ def main(argv=None):
         # Determine if this is a profile URL or repository URL
         if archiver.is_profile_url(URL):
             # Profile archiving mode
-            _ = archive_profile(archiver, URL, args, verbose)
+            _ = archive_profile(archiver, URL, args, verbose, num_releases=num_releases)
         else:
             # Single repository archiving mode
             identifier, metadata = archive_single_repository(
-                archiver, URL, args, verbose
+                archiver, URL, args, verbose, num_releases=num_releases
             )
 
             # Output results
