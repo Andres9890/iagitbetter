@@ -176,9 +176,9 @@ Key improvements over iagitup:
     )
     parser.add_argument("--version", "-v", action="version", version=__version__)
     parser.add_argument(
-        "--bundle-only",
+        "--all-files",
         action="store_true",
-        help="only upload git bundle, not repository files (can be combined with --releases)",
+        help="upload all repository files in addition to git bundle (by default, only the bundle is uploaded)",
     )
     parser.add_argument(
         "--no-update-check",
@@ -289,14 +289,7 @@ def _build_archive_components_list(args):
     """Build list of components that will be archived based on args"""
     archive_components = []
 
-    if args.bundle_only:
-        archive_components.append("Git bundle")
-        if args.releases:
-            if args.all_releases:
-                archive_components.append("All releases")
-            else:
-                archive_components.append("Latest release")
-    else:
+    if args.all_files:
         archive_components.append("Repository files")
         if args.all_branches:
             archive_components.append("All branches")
@@ -304,6 +297,13 @@ def _build_archive_components_list(args):
             archive_components.append(f"Branch: {args.branch}")
         else:
             archive_components.append("Default branch")
+        if args.releases:
+            if args.all_releases:
+                archive_components.append("All releases")
+            else:
+                archive_components.append("Latest release")
+    else:
+        archive_components.append("Git bundle")
         if args.releases:
             if args.all_releases:
                 archive_components.append("All releases")
@@ -352,7 +352,7 @@ def archive_single_repository(archiver, url, args, verbose):
             includes_releases=args.releases,
             includes_all_branches=args.all_branches,
             specific_branch=args.branch,
-            bundle_only=args.bundle_only,
+            bundle_only=not args.all_files,
             create_repo_info=not args.no_repo_info,
         )
 
@@ -615,16 +615,8 @@ def _print_upload_results(identifier, metadata, archiver, args):
 
 def _print_archive_mode(archiver, args):
     """Print information about what was archived"""
-    if args.bundle_only:
-        print("Archive mode: Bundle only")
-        if args.releases:
-            release_count = archiver.repo_data.get("downloaded_releases", 0)
-            releases_dir = archiver.repo_data.get("releases_dir_name", "releases")
-            if args.all_releases:
-                print(f"Releases: {release_count} releases archived in {releases_dir}/")
-            else:
-                print(f"Releases: Latest release archived in {releases_dir}/")
-    else:
+    if args.all_files:
+        print("Archive mode: Repository files and bundle")
         if args.all_branches:
             branch_count = archiver.repo_data.get("branch_count", 0)
             branches = archiver.repo_data.get("branches", [])
@@ -639,6 +631,15 @@ def _print_archive_mode(archiver, args):
                 )
         elif args.branch:
             print(f"Branch: {args.branch} archived")
+        if args.releases:
+            release_count = archiver.repo_data.get("downloaded_releases", 0)
+            releases_dir = archiver.repo_data.get("releases_dir_name", "releases")
+            if args.all_releases:
+                print(f"Releases: {release_count} releases archived in {releases_dir}/")
+            else:
+                print(f"Releases: Latest release archived in {releases_dir}/")
+    else:
+        print("Archive mode: Bundle only")
         if args.releases:
             release_count = archiver.repo_data.get("downloaded_releases", 0)
             releases_dir = archiver.repo_data.get("releases_dir_name", "releases")

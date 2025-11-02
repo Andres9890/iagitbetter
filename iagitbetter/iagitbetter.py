@@ -2357,9 +2357,7 @@ class GitArchiver:
             self.repo_data["repo_name"],
         ]
 
-        if bundle_only:
-            subject_tags.append("bundle-only")
-        else:
+        if not bundle_only:
             if includes_releases:
                 subject_tags.append("releases")
             if includes_all_branches:
@@ -2424,9 +2422,6 @@ class GitArchiver:
         self, metadata, bundle_only, includes_releases, custom_metadata
     ):
         """Add optional metadata fields"""
-        if bundle_only:
-            metadata["bundleonly"] = "true"
-
         if includes_releases:
             metadata["includesreleases"] = "true"
             metadata["releasecount"] = str(self.repo_data.get("downloaded_releases", 0))

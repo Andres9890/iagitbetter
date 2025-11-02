@@ -68,7 +68,7 @@ iagitbetter <git_url_or_profile> [options]
 ### Options
 
 - `--metadata=<key:value>` – custom metadata to add to the IA item
-- `--bundle-only` – only upload git bundle, not all files
+- `--all-files` – upload all repository files in addition to git bundle (by default, only the bundle is uploaded)
 - `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
 - `--no-update-check` – skip checking for updates on PyPI
@@ -292,8 +292,8 @@ iagitbetter --all-branches --releases --all-releases https://github.com/user/rep
 # Archive with custom metadata
 iagitbetter --metadata="collection:software,topic:python" https://github.com/user/repo
 
-# Bundle-only (compatibility mode)
-iagitbetter --bundle-only https://github.com/user/repo
+# All files mode (upload repository files and bundle)
+iagitbetter --all-files https://github.com/user/repo
 
 # Quiet mode with all features
 iagitbetter --quiet --all-branches --releases --all-releases https://github.com/user/repo
@@ -443,9 +443,9 @@ docs/guide.md
 {owner}-{repo}.bundle
 ```
 
-The files will be uploaded to Internet Archive exactly as shown above, preserving the directory structure
+By default, only the git bundle is uploaded to Internet Archive.
 
-If you use the `--bundle-only` flag, only the git bundle will be uploaded.
+If you use the `--all-files` flag, all repository files will be uploaded in addition to the bundle, preserving the directory structure as shown above.
 
 ## How it works
 
