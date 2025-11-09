@@ -2282,9 +2282,10 @@ class GitArchiver:
         """Generate identifier for Internet Archive upload"""
         return f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d%H%M%S')}"
 
-    def _generate_item_name(self):
+    def _generate_item_name(self, repo_date):
         """Generate item name for Internet Archive upload"""
-        return f"{self.repo_data['owner']} - {self.repo_data['repo_name']}"
+        date_str = repo_date.strftime("%Y-%m-%d")
+        return f"{self.repo_data['owner']} - {self.repo_data['repo_name']} {date_str}"
 
     def _build_archive_details(
         self, bundle_only, includes_all_branches, specific_branch, includes_releases
@@ -2373,11 +2374,7 @@ class GitArchiver:
         ]
 
         if not bundle_only:
-            if includes_releases:
-                subject_tags.append("releases")
-            if includes_all_branches:
-                subject_tags.append("branches")
-            elif specific_branch:
+            if specific_branch:
                 subject_tags.extend(["branch", specific_branch])
 
         if self.repo_data.get("language"):
@@ -2426,20 +2423,18 @@ class GitArchiver:
     def _add_branch_metadata(self, metadata, includes_all_branches, specific_branch):
         """Add branch-related metadata"""
         if includes_all_branches:
-            metadata["allbranches"] = "true"
-            metadata["branchcount"] = str(self.repo_data.get("branch_count", 0))
+            metadata["branches"] = str(self.repo_data.get("branch_count", 0))
             if self.repo_data.get("branches"):
                 metadata["branchlist"] = ";".join(self.repo_data["branches"])
         elif specific_branch:
-            metadata["specificbranch"] = specific_branch
+            metadata["branch"] = specific_branch
 
     def _add_optional_metadata(
         self, metadata, bundle_only, includes_releases, custom_metadata
     ):
         """Add optional metadata fields"""
         if includes_releases:
-            metadata["includesreleases"] = "true"
-            metadata["releasecount"] = str(self.repo_data.get("downloaded_releases", 0))
+            metadata["releases"] = str(self.repo_data.get("downloaded_releases", 0))
 
         if self.repo_data.get("stars") is not None:
             metadata["stars"] = str(self.repo_data["stars"])
@@ -2451,12 +2446,6 @@ class GitArchiver:
             metadata["homepage"] = self.repo_data["homepage"]
         if self.repo_data.get("default_branch"):
             metadata["defaultbranch"] = self.repo_data["default_branch"]
-        if self.repo_data.get("archived"):
-            metadata["repoarchived"] = str(self.repo_data["archived"])
-        if self.repo_data.get("fork"):
-            metadata["isfork"] = str(self.repo_data["fork"])
-        if self.repo_data.get("private"):
-            metadata["repoprivate"] = "true"
 
         if custom_metadata:
             metadata.update(custom_metadata)
@@ -2656,7 +2645,7 @@ class GitArchiver:
 
         # Generate identifier and names
         identifier = self._generate_upload_identifier(archive_date)
-        item_name = self._generate_item_name()
+        item_name = self._generate_item_name(archive_date)
         bundle_filename = (
             f"{self.repo_data['owner']}-{self.repo_data['repo_name']}.bundle"
         )
