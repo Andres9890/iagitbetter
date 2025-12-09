@@ -11,7 +11,6 @@ __author__ = "Andres99"
 __license__ = "GPL-3.0"
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -29,6 +28,13 @@ import internetarchive
 import requests
 from internetarchive.config import parse_config_file
 from markdown2 import markdown_path
+
+# Import provider registry
+from .providers import (
+    detect_git_site,
+    get_provider_by_name,
+    get_provider_for_domain,
+)
 
 
 def get_latest_pypi_version(package_name="iagitbetter"):
@@ -96,6 +102,31 @@ class GitArchiver:
         self.api_url = api_url  # Custom API URL for self-hosted instances
         self.api_token = api_token  # API token for authentication
         self.api_username = api_username  # <-- store username for Bitbucket Basic auth
+        self._provider = None  # Provider instance (lazy loaded)
+
+    def _get_provider(self, domain=None):
+        """Get or create the provider instance for the current repository."""
+        if self._provider is None:
+            domain = domain or self.repo_data.get("domain", "")
+            git_site = self.git_provider_type or self.repo_data.get("git_site", "")
+
+            if git_site:
+                self._provider = get_provider_by_name(
+                    git_site,
+                    api_token=self.api_token,
+                    api_url=self.api_url,
+                    api_username=self.api_username,
+                    verbose=self.verbose,
+                )
+            if self._provider is None and domain:
+                self._provider = get_provider_for_domain(
+                    domain,
+                    api_token=self.api_token,
+                    api_url=self.api_url,
+                    api_username=self.api_username,
+                    verbose=self.verbose,
+                )
+        return self._provider
 
     def is_profile_url(self, url):
         """Determine if URL is a profile/organization page or a specific repository"""
@@ -109,364 +140,24 @@ class GitArchiver:
     def fetch_user_repositories(self, username):
         """Fetch all repositories for a given user/organization"""
         domain = self.repo_data.get("domain", "")
-        site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
-
-        repositories = []
 
         try:
-            if site == "github" or domain == "github.com":
-                repositories = self._fetch_github_user_repos(username)
-            elif site == "gitlab" or domain == "gitlab.com":
-                repositories = self._fetch_gitlab_user_repos(username)
-            elif (
-                site in ["gitea", "codeberg"]
-                or "gitea" in domain
-                or domain == "codeberg.org"
-            ):
-                repositories = self._fetch_gitea_user_repos(username)
-            elif site == "bitbucket" or domain == "bitbucket.org":
-                repositories = self._fetch_bitbucket_user_repos(username)
-            elif site == "gitee" or domain == "gitee.com":
-                repositories = self._fetch_gitee_user_repos(username)
-            elif site == "gogs" or domain == "notabug.org":
-                repositories = self._fetch_gogs_user_repos(username)
+            provider = self._get_provider(domain)
+            if provider:
+                repositories = provider.fetch_user_repos(username, domain)
+                if self.verbose:
+                    print(f"   Found {len(repositories)} repositories for {username}")
+                return repositories
             else:
                 if self.verbose:
+                    site = self.git_provider_type or self.repo_data.get("git_site", "")
                     print(f"   Profile archiving not supported for {site or domain}")
                 return []
-
-            if self.verbose:
-                print(f"   Found {len(repositories)} repositories for {username}")
-
-            return repositories
 
         except Exception as e:
             if self.verbose:
                 print(f"   Error fetching repositories: {e}")
             return []
-
-    def _fetch_github_user_repos(self, username):
-        """Fetch all repositories from GitHub user/org (supports org repos)"""
-        repos = []
-        page = 1
-        per_page = 100
-
-        # Detect whether the name is a User or an Organization
-        who_url = f"https://api.github.com/users/{username}"
-        headers = {}
-        if self.api_token:
-            headers["Authorization"] = f"token {self.api_token}"
-
-        entity_type = "User"
-        try:
-            who_resp = requests.get(who_url, headers=headers, timeout=10)
-            if who_resp.status_code == 200:
-                entity_type = who_resp.json().get("type", "User")
-        except Exception:
-            pass
-
-        # Choose the correct listing endpoint
-        # Users: /users/{username}/repos
-        # Orgs:  /orgs/{org}/repos
-        base_list_path = (
-            f"https://api.github.com/orgs/{username}/repos"
-            if entity_type == "Organization"
-            else f"https://api.github.com/users/{username}/repos"
-        )
-
-        while True:
-            url = f"{base_list_path}?per_page={per_page}&page={page}&sort=updated"
-            list_headers = {}
-            if self.api_token:
-                list_headers["Authorization"] = f"token {self.api_token}"
-
-            response = requests.get(url, headers=list_headers, timeout=10)
-            if response.status_code == 200:
-                page_repos = response.json()
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["full_name"],
-                            "clone_url": repo["clone_url"],
-                            "html_url": repo["html_url"],
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("fork", False),
-                            "archived": repo.get("archived", False),
-                            "private": repo.get("private", False),
-                        }
-                    )
-
-                if len(page_repos) < per_page:
-                    break
-                page += 1
-            else:
-                if self.verbose:
-                    print(
-                        f"   Error fetching GitHub repos (status {response.status_code})"
-                    )
-                break
-
-        return repos
-
-    def _fetch_gitlab_user_repos(self, username):
-        """Fetch all repositories from GitLab user/org"""
-        repos = []
-        page = 1
-        per_page = 100
-
-        # First, try to get user ID
-        base_url = (
-            self.api_url
-            if self.api_url
-            else f"https://{self.repo_data.get('domain', 'gitlab.com')}/api/v4"
-        )
-        headers = {}
-        if self.api_token:
-            headers["PRIVATE-TOKEN"] = self.api_token
-
-        # Get user info to find user ID
-        user_url = f"{base_url}/users?username={username}"
-        response = requests.get(user_url, headers=headers, timeout=10)
-
-        if response.status_code != 200 or not response.json():
-            if self.verbose:
-                print(f"   Could not find GitLab user: {username}")
-            return []
-
-        user_id = response.json()[0]["id"]
-
-        # Fetch user's projects
-        while True:
-            url = f"{base_url}/users/{user_id}/projects?per_page={per_page}&page={page}&order_by=updated_at"
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                page_repos = response.json()
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["path_with_namespace"],
-                            "clone_url": repo["http_url_to_repo"],
-                            "html_url": repo["web_url"],
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("forked_from_project") is not None,
-                            "archived": repo.get("archived", False),
-                            "private": repo.get("visibility") != "public",
-                        }
-                    )
-
-                if len(page_repos) < per_page:
-                    break
-                page += 1
-            else:
-                break
-
-        return repos
-
-    def _fetch_gitea_user_repos(self, username):
-        """Fetch all repositories from Gitea/Forgejo/Codeberg user/org"""
-        repos = []
-        page = 1
-        per_page = 50
-
-        base_url = (
-            self.api_url
-            if self.api_url
-            else f"https://{self.repo_data.get('domain', 'gitea.com')}/api/v1"
-        )
-        headers = {}
-        if self.api_token:
-            headers["Authorization"] = f"token {self.api_token}"
-
-        while True:
-            url = f"{base_url}/users/{username}/repos?limit={per_page}&page={page}"
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                page_repos = response.json()
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["full_name"],
-                            "clone_url": repo["clone_url"],
-                            "html_url": repo["html_url"],
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("fork", False),
-                            "archived": repo.get("archived", False),
-                            "private": repo.get("private", False),
-                        }
-                    )
-
-                if len(page_repos) < per_page:
-                    break
-                page += 1
-            else:
-                break
-
-        return repos
-
-    def _bitbucket_auth_headers(self):
-        """Build Bitbucket auth headers supporting App Passwords (Basic) or OAuth (Bearer)."""
-        # App Passwords: requires username + app password via basic auth
-        if self.api_username and self.api_token:
-            token = base64.b64encode(
-                f"{self.api_username}:{self.api_token}".encode("utf-8")
-            ).decode("utf-8")
-            return {"Authorization": f"Basic {token}"}
-        # OAuth 2 access token: Bearer
-        if self.api_token:
-            return {"Authorization": f"Bearer {self.api_token}"}
-        return {}
-
-    def _fetch_bitbucket_user_repos(self, username):
-        """Fetch all repositories from Bitbucket user/workspace"""
-        repos = []
-        url = f"https://api.bitbucket.org/2.0/repositories/{username}"
-
-        headers = self._bitbucket_auth_headers()
-
-        while url:
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                data = response.json()
-
-                for repo in data.get("values", []):
-                    clone_url = None
-                    for link in repo.get("links", {}).get("clone", []):
-                        if link.get("name") == "https":
-                            clone_url = link.get("href")
-                            break
-
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["full_name"],
-                            "clone_url": clone_url or "",
-                            "html_url": repo.get("links", {})
-                            .get("html", {})
-                            .get("href", ""),
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("parent") is not None,
-                            "archived": False,  # Bitbucket doesn't have archived status in API
-                            "private": repo.get("is_private", False),
-                        }
-                    )
-
-                # Get next page
-                url = data.get("next")
-            else:
-                break
-
-        return repos
-
-    def _fetch_gitee_user_repos(self, username):
-        """Fetch all repositories from Gitee user"""
-        repos = []
-        page = 1
-        per_page = 100
-
-        base_url = "https://gitee.com/api/v5"
-        headers = {}
-        if self.api_token:
-            headers["Authorization"] = f"token {self.api_token}"
-
-        while True:
-            url = f"{base_url}/users/{username}/repos?per_page={per_page}&page={page}&sort=updated"
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                page_repos = response.json()
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["full_name"],
-                            "clone_url": repo["clone_url"],
-                            "html_url": repo["html_url"],
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("fork", False),
-                            "archived": False,
-                            "private": repo.get("private", False),
-                        }
-                    )
-
-                if len(page_repos) < per_page:
-                    break
-                page += 1
-            else:
-                if self.verbose:
-                    print(
-                        f"   Error fetching Gitee repos (status {response.status_code})"
-                    )
-                break
-
-        return repos
-
-    def _fetch_gogs_user_repos(self, username):
-        """Fetch all repositories from Gogs/Notabug user"""
-        repos = []
-        page = 1
-        per_page = 50
-
-        base_url = (
-            self.api_url
-            if self.api_url
-            else f"https://{self.repo_data.get('domain', 'notabug.org')}/api/v1"
-        )
-        headers = {}
-        if self.api_token:
-            headers["Authorization"] = f"token {self.api_token}"
-
-        while True:
-            url = f"{base_url}/users/{username}/repos?limit={per_page}&page={page}"
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                page_repos = response.json()
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repos.append(
-                        {
-                            "name": repo["name"],
-                            "full_name": repo["full_name"],
-                            "clone_url": repo["clone_url"],
-                            "html_url": repo["html_url"],
-                            "description": repo.get("description", ""),
-                            "fork": repo.get("fork", False),
-                            "archived": False,
-                            "private": repo.get("private", False),
-                        }
-                    )
-
-                if len(page_repos) < per_page:
-                    break
-                page += 1
-            else:
-                if self.verbose:
-                    print(
-                        f"   Error fetching Gogs repos (status {response.status_code})"
-                    )
-                break
-
-        return repos
 
     def extract_repo_info(self, repo_url):
         """Extract repository information from any git URL"""
@@ -478,36 +169,11 @@ class GitArchiver:
         if domain.startswith("www."):
             domain = domain[4:]
 
-        # Detect git provider type
-        if not self.git_provider_type:
-            # Auto-detect based on domain
-            if domain == "gist.github.com":
-                git_site = "gist"
-            elif "github" in domain:
-                git_site = "github"
-            elif "gitlab" in domain:
-                git_site = "gitlab"
-            elif "bitbucket" in domain:
-                git_site = "bitbucket"
-            elif "codeberg" in domain:
-                git_site = "codeberg"
-            elif "gitea" in domain:
-                git_site = "gitea"
-            elif "gitee" in domain or domain == "gitee.com":
-                git_site = "gitee"
-            elif "gogs" in domain or domain == "notabug.org":
-                git_site = "gogs"
-            elif "sourceforge" in domain:
-                git_site = "sourceforge"
-            elif "launchpad" in domain:
-                git_site = "launchpad"
-            elif "gerrit" in domain:
-                git_site = "gerrit"
-            else:
-                # For unknown/self-hosted, use domain name or 'git'
-                git_site = domain.split(".")[0] if "." in domain else "git"
-        else:
-            git_site = self.git_provider_type
+        # Detect git provider type using the providers module
+        git_site = detect_git_site(domain, self.git_provider_type)
+
+        # Reset provider when extracting new repo info
+        self._provider = None
 
         # Extract path components
         path_parts = parsed.path.strip("/").split("/")
@@ -533,8 +199,13 @@ class GitArchiver:
                 path_parts[0].replace(".git", "") if path_parts else "repository"
             )
 
+        # Remove .git suffix from URL if present
+        clean_url = repo_url.rstrip("/")
+        if clean_url.endswith(".git"):
+            clean_url = clean_url[:-4]
+
         self.repo_data = {
-            "url": repo_url,
+            "url": clean_url,
             "domain": domain,
             "git_site": git_site,
             "owner": owner,
@@ -554,92 +225,27 @@ class GitArchiver:
         owner = self.repo_data.get("owner", "")
         repo_name = self.repo_data.get("repo_name", "")
         domain = self.repo_data.get("domain", "")
-        site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
 
-        # If custom API URL is provided, treat it as the base API URL for that provider
+        provider = self._get_provider(domain)
+        if provider:
+            return provider.build_api_url(owner, repo_name, domain)
+
+        # Fallback for unknown providers - use custom API URL if set
         if self.api_url:
-            base = self.api_url.rstrip("/")
-            if site == "gist":
-                return f"{base}/gists/{repo_name}"
-            elif site == "github":
-                return f"{base}/repos/{owner}/{repo_name}"
-            elif site == "gitlab":
-                # GitLab projects use URL-encoded path
-                return f"{base}/projects/{owner}%2F{repo_name}"
-            elif site in ("gitea", "codeberg", "gogs") or "gitea" in domain:
-                return f"{base}/repos/{owner}/{repo_name}"
-            elif site == "bitbucket":
-                return f"{base}/repositories/{owner}/{repo_name}"
-            elif site == "gitee":
-                return f"{base}/repos/{owner}/{repo_name}"
-            elif site == "sourceforge":
-                return f"{base}/rest/p/{owner}/{repo_name}"
-            elif site == "gerrit":
-                return f"{base}/projects/{owner}%2F{repo_name}"
-            elif site == "launchpad":
-                return f"{base}/{owner}/{repo_name}"
-            # Fallback: assume Gitea/Forgejo shape
-            return f"{base}/repos/{owner}/{repo_name}"
+            return f"{self.api_url.rstrip('/')}/repos/{owner}/{repo_name}"
 
-        # No custom api_url: use known public endpoints
-        if site == "gist" or domain == "gist.github.com":
-            return f"https://api.github.com/gists/{repo_name}"
-        elif site == "github" or domain == "github.com":
-            return f"https://api.github.com/repos/{owner}/{repo_name}"
-        elif site == "gitlab" or domain == "gitlab.com":
-            return f"https://gitlab.com/api/v4/projects/{owner}%2F{repo_name}"
-        elif site == "bitbucket" or domain == "bitbucket.org":
-            return f"https://api.bitbucket.org/2.0/repositories/{owner}/{repo_name}"
-        elif site == "gitee" or domain == "gitee.com":
-            return f"https://gitee.com/api/v5/repos/{owner}/{repo_name}"
-        elif site == "gogs" or domain == "notabug.org":
-            return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
-        elif site == "sourceforge" or domain == "sourceforge.net":
-            return f"https://sourceforge.net/rest/p/{owner}/{repo_name}"
-        elif site == "gerrit":
-            return f"https://{domain}/projects/{owner}%2F{repo_name}"
-        elif site == "launchpad" or "launchpad" in domain:
-            return f"https://api.launchpad.net/1.0/{owner}/{repo_name}"
-        elif (
-            site in ["codeberg", "gitea"]
-            or "gitea" in domain
-            or domain == "codeberg.org"
-        ):
-            return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
+        # Default fallback
         return f"https://{domain}/api/v1/repos/{owner}/{repo_name}"
 
     def _fetch_api_metadata(self):
         """Try to fetch metadata from various git provider APIs"""
         try:
             api_url = self._build_api_url()
+            domain = self.repo_data.get("domain", "")
 
-            # Prepare headers for authentication
-            headers = {}
-            site = (
-                self.git_provider_type or self.repo_data.get("git_site") or ""
-            ).lower()
-            if self.api_token:
-                if site == "gist":
-                    headers["Authorization"] = f"token {self.api_token}"
-                elif site == "github":
-                    headers["Authorization"] = f"token {self.api_token}"
-                elif site == "gitlab":
-                    headers["PRIVATE-TOKEN"] = self.api_token
-                elif site == "bitbucket":
-                    headers.update(self._bitbucket_auth_headers())
-                elif site == "gitee":
-                    headers["Authorization"] = f"token {self.api_token}"
-                elif site == "gogs":
-                    headers["Authorization"] = f"token {self.api_token}"
-                elif site == "sourceforge":
-                    headers["Authorization"] = f"Bearer {self.api_token}"
-                elif site == "gerrit":
-                    headers["Authorization"] = f"Bearer {self.api_token}"
-                elif site == "launchpad":
-                    headers["Authorization"] = f"Bearer {self.api_token}"
-                else:
-                    # Gitea/Forgejo generally accept 'token', some accept Bearer too
-                    headers["Authorization"] = f"token {self.api_token}"
+            # Get authentication headers from provider
+            provider = self._get_provider(domain)
+            headers = provider.get_auth_headers() if provider else {}
 
             if self.verbose:
                 print("   Fetching metadata from API...")
@@ -669,39 +275,46 @@ class GitArchiver:
 
     def _parse_api_response(self, api_data):
         """Parse API response based on the git provider"""
-        site = (self.git_provider_type or self.repo_data.get("git_site") or "").lower()
+        domain = self.repo_data.get("domain", "")
+        provider = self._get_provider(domain)
 
-        if site == "gist":
-            self._parse_gist_response(api_data)
-        elif site == "gitee":
-            self._parse_gitee_response(api_data)
-        elif site == "gogs":
-            self._parse_gogs_response(api_data)
-        elif site == "sourceforge":
-            self._parse_sourceforge_response(api_data)
-        elif site == "gerrit":
-            self._parse_gerrit_response(api_data)
-        elif site == "launchpad":
-            self._parse_launchpad_response(api_data)
-        # Detect provider type from response structure if not already known
-        elif "stargazers_count" in api_data and "clone_url" in api_data:
+        if provider:
+            # Use provider's parse method
+            # For GitLab, we need to pass domain for avatar URL handling
+            if hasattr(provider, "parse_repo_response"):
+                try:
+                    # Some providers (like GitLab) need domain for URL handling
+                    import inspect
+
+                    sig = inspect.signature(provider.parse_repo_response)
+                    if "domain" in sig.parameters:
+                        parsed_data = provider.parse_repo_response(api_data, domain)
+                    else:
+                        parsed_data = provider.parse_repo_response(api_data)
+                    self.repo_data.update(parsed_data)
+                    return
+                except Exception:
+                    pass
+
+        # Fallback: detect provider type from response structure
+        if "stargazers_count" in api_data and "clone_url" in api_data:
             # GitHub-like API
-            self._parse_github_response(api_data)
+            self._parse_github_like_response(api_data)
         elif "star_count" in api_data and "path_with_namespace" in api_data:
             # GitLab-like API
-            self._parse_gitlab_response(api_data)
+            self._parse_gitlab_like_response(api_data)
         elif "scm" in api_data and api_data.get("scm") in ["git", "hg"]:
             # Bitbucket API
-            self._parse_bitbucket_response(api_data)
+            self._parse_bitbucket_like_response(api_data)
         elif "stars_count" in api_data:
             # Gitea/Forgejo/Gogs API
-            self._parse_gitea_response(api_data)
+            self._parse_gitea_like_response(api_data)
         else:
             # Try to extract common fields
             self._parse_generic_response(api_data)
 
-    def _parse_github_response(self, api_data):
-        """Parse GitHub API response"""
+    def _parse_github_like_response(self, api_data):
+        """Parse GitHub-like API response (fallback)"""
         self.repo_data.update(
             {
                 "description": api_data.get("description", ""),
@@ -712,31 +325,11 @@ class GitArchiver:
                 "stars": api_data.get("stargazers_count", 0),
                 "forks": api_data.get("forks_count", 0),
                 "watchers": api_data.get("watchers_count", 0),
-                "subscribers": api_data.get("subscribers_count", 0),
-                "open_issues": api_data.get("open_issues_count", 0),
-                "homepage": api_data.get("homepage", ""),
-                "topics": api_data.get("topics", []),
-                "license": (
-                    api_data.get("license", {}).get("name", "")
-                    if api_data.get("license")
-                    else ""
-                ),
                 "default_branch": api_data.get("default_branch", "main"),
-                "has_wiki": api_data.get("has_wiki", False),
-                "has_pages": api_data.get("has_pages", False),
-                "has_projects": api_data.get("has_projects", False),
-                "has_issues": api_data.get("has_issues", False),
                 "archived": api_data.get("archived", False),
-                "disabled": api_data.get("disabled", False),
                 "private": api_data.get("private", False),
                 "fork": api_data.get("fork", False),
-                "size": api_data.get("size", 0),
-                "network_count": api_data.get("network_count", 0),
                 "clone_url": api_data.get("clone_url", ""),
-                "ssh_url": api_data.get("ssh_url", ""),
-                "svn_url": api_data.get("svn_url", ""),
-                "mirror_url": api_data.get("mirror_url", ""),
-                "visibility": api_data.get("visibility", "public"),
                 "avatar_url": (
                     api_data.get("owner", {}).get("avatar_url", "")
                     if api_data.get("owner")
@@ -745,72 +338,9 @@ class GitArchiver:
             }
         )
 
-    def _parse_gist_response(self, api_data):
-        """Parse GitHub Gist API response"""
-        description = api_data.get("description", "")
-
-        files = api_data.get("files", {})
-        file_list = list(files.keys()) if files else []
-
-        languages = set()
-        for file_info in files.values():
-            if file_info.get("language"):
-                languages.add(file_info.get("language"))
-        primary_language = ", ".join(sorted(languages)) if languages else ""
-
-        self.repo_data.update(
-            {
-                "description": description,
-                "created_at": api_data.get("created_at", ""),
-                "updated_at": api_data.get("updated_at", ""),
-                "pushed_at": api_data.get("updated_at", ""),
-                "language": primary_language,
-                "stars": 0,
-                "forks": len(api_data.get("forks", [])) if api_data.get("forks") else 0,
-                "watchers": 0,
-                "subscribers": 0,
-                "open_issues": 0,
-                "homepage": "",
-                "topics": [],
-                "license": "",
-                "default_branch": "master",
-                "has_wiki": False,
-                "has_pages": False,
-                "has_projects": False,
-                "has_issues": False,
-                "archived": False,
-                "disabled": False,
-                "private": not api_data.get("public", True),
-                "fork": False,
-                "size": sum(f.get("size", 0) for f in files.values()) if files else 0,
-                "network_count": 0,
-                "clone_url": api_data.get("git_pull_url", ""),
-                "ssh_url": api_data.get("git_push_url", ""),
-                "html_url": api_data.get("html_url", ""),
-                "visibility": "public" if api_data.get("public", True) else "private",
-                "avatar_url": (
-                    api_data.get("owner", {}).get("avatar_url", "")
-                    if api_data.get("owner")
-                    else ""
-                ),
-                "gist_files": file_list,
-                "gist_comments": api_data.get("comments", 0),
-            }
-        )
-
-    def _parse_gitlab_response(self, api_data):
-        """Parse GitLab API response"""
-        # Handle GitLab avatar URL - prefer project-level, then namespace, handle relative URLs
-        avatar_url = ""
-
-        # Try project-level avatar first
-        if api_data.get("avatar_url"):
-            avatar_url = api_data["avatar_url"]
-        # Fall back to namespace avatar for group-owned projects
-        elif api_data.get("namespace", {}).get("avatar_url"):
-            avatar_url = api_data["namespace"]["avatar_url"]
-
-        # Handle relative URLs by prefixing with instance URL
+    def _parse_gitlab_like_response(self, api_data):
+        """Parse GitLab-like API response (fallback)"""
+        avatar_url = api_data.get("avatar_url", "")
         if avatar_url and not avatar_url.startswith(("http://", "https://")):
             instance_url = f"https://{self.repo_data['domain']}"
             avatar_url = (
@@ -827,24 +357,11 @@ class GitArchiver:
                 "pushed_at": api_data.get("last_activity_at", ""),
                 "stars": api_data.get("star_count", 0),
                 "forks": api_data.get("forks_count", 0),
-                "topics": api_data.get("topics", []),
                 "default_branch": api_data.get("default_branch", "main"),
                 "archived": api_data.get("archived", False),
                 "private": api_data.get("visibility", "public") != "public",
                 "fork": api_data.get("forked_from_project") is not None,
-                "open_issues": api_data.get("open_issues_count", 0),
-                "has_wiki": api_data.get("wiki_enabled", False),
-                "has_pages": api_data.get("pages_enabled", False),
-                "has_issues": api_data.get("issues_enabled", False),
                 "clone_url": api_data.get("http_url_to_repo", ""),
-                "ssh_url": api_data.get("ssh_url_to_repo", ""),
-                "web_url": api_data.get("web_url", ""),
-                "namespace": api_data.get("namespace", {}).get("name", ""),
-                "path_with_namespace": api_data.get("path_with_namespace", ""),
-                "visibility": api_data.get("visibility", "public"),
-                "merge_requests_enabled": api_data.get("merge_requests_enabled", False),
-                "ci_enabled": api_data.get("builds_enabled", False),
-                "shared_runners_enabled": api_data.get("shared_runners_enabled", False),
                 "avatar_url": avatar_url,
                 "project_id": (
                     str(api_data.get("id", ""))
@@ -854,8 +371,8 @@ class GitArchiver:
             }
         )
 
-    def _parse_bitbucket_response(self, api_data):
-        """Parse Bitbucket API response"""
+    def _parse_bitbucket_like_response(self, api_data):
+        """Parse Bitbucket-like API response (fallback)"""
         self.repo_data.update(
             {
                 "description": api_data.get("description", ""),
@@ -864,22 +381,9 @@ class GitArchiver:
                 "language": api_data.get("language", ""),
                 "private": api_data.get("is_private", False),
                 "fork": api_data.get("parent") is not None,
-                "size": api_data.get("size", 0),
-                "has_wiki": api_data.get("has_wiki", False),
-                "has_issues": api_data.get("has_issues", False),
                 "clone_url": api_data.get("links", {})
                 .get("clone", [{}])[0]
                 .get("href", ""),
-                "homepage": api_data.get("website", ""),
-                "scm": api_data.get("scm", "git"),
-                "mainbranch": api_data.get("mainbranch", {}).get("name", "main"),
-                "project": (
-                    api_data.get("project", {}).get("name", "")
-                    if api_data.get("project")
-                    else ""
-                ),
-                "owner_type": api_data.get("owner", {}).get("type", ""),
-                "owner_display_name": api_data.get("owner", {}).get("display_name", ""),
                 "avatar_url": (
                     api_data.get("owner", {})
                     .get("links", {})
@@ -891,8 +395,8 @@ class GitArchiver:
             }
         )
 
-    def _parse_gitea_response(self, api_data):
-        """Parse Gitea/Forgejo API response"""
+    def _parse_gitea_like_response(self, api_data):
+        """Parse Gitea/Forgejo/Gogs-like API response (fallback)"""
         self.repo_data.update(
             {
                 "description": api_data.get("description", ""),
@@ -901,28 +405,11 @@ class GitArchiver:
                 "language": api_data.get("language", ""),
                 "stars": api_data.get("stars_count", 0),
                 "forks": api_data.get("forks_count", 0),
-                "watchers": api_data.get("watchers_count", 0),
-                "open_issues": api_data.get("open_issues_count", 0),
-                "homepage": api_data.get("website", ""),
                 "default_branch": api_data.get("default_branch", "main"),
                 "archived": api_data.get("archived", False),
                 "private": api_data.get("private", False),
                 "fork": api_data.get("fork", False),
-                "size": api_data.get("size", 0),
-                "has_wiki": api_data.get("has_wiki", False),
-                "has_issues": api_data.get("has_issues", False),
-                "has_projects": api_data.get("has_projects", False),
-                "has_pull_requests": api_data.get("has_pull_requests", False),
                 "clone_url": api_data.get("clone_url", ""),
-                "ssh_url": api_data.get("ssh_url", ""),
-                "html_url": api_data.get("html_url", ""),
-                "mirror": api_data.get("mirror", False),
-                "template": api_data.get("template", False),
-                "empty": api_data.get("empty", False),
-                "permissions": api_data.get("permissions", {}),
-                "internal_tracker": api_data.get("internal_tracker", {}),
-                "external_tracker": api_data.get("external_tracker", {}),
-                "external_wiki": api_data.get("external_wiki", {}),
                 "avatar_url": (
                     api_data.get("owner", {}).get("avatar_url", "")
                     if api_data.get("owner")
@@ -933,7 +420,6 @@ class GitArchiver:
 
     def _parse_generic_response(self, api_data):
         """Parse generic API response for unknown providers"""
-        # Extract common fields that might exist
         self.repo_data.update(
             {
                 "description": api_data.get("description", ""),
@@ -1081,106 +567,6 @@ class GitArchiver:
         # No matching license URL found
         return None
 
-    def _parse_gitee_response(self, api_data):
-        """Parse Gitee API response"""
-        self.repo_data.update(
-            {
-                "description": api_data.get("description", ""),
-                "created_at": api_data.get("created_at", ""),
-                "updated_at": api_data.get("updated_at", ""),
-                "pushed_at": api_data.get("pushed_at", ""),
-                "language": api_data.get("language", ""),
-                "stars": api_data.get("stargazers_count", 0),
-                "forks": api_data.get("forks_count", 0),
-                "watchers": api_data.get("watchers_count", 0),
-                "open_issues": api_data.get("open_issues_count", 0),
-                "homepage": api_data.get("homepage", ""),
-                "license": (
-                    api_data.get("license", {}).get("name", "")
-                    if api_data.get("license")
-                    else ""
-                ),
-                "default_branch": api_data.get("default_branch", "master"),
-                "has_wiki": api_data.get("has_wiki", False),
-                "has_issues": api_data.get("has_issues", False),
-                "archived": False,
-                "private": api_data.get("private", False),
-                "fork": api_data.get("fork", False),
-                "size": api_data.get("size", 0),
-                "clone_url": api_data.get("clone_url", ""),
-                "ssh_url": api_data.get("ssh_url", ""),
-                "html_url": api_data.get("html_url", ""),
-                "avatar_url": (
-                    api_data.get("owner", {}).get("avatar_url", "")
-                    if api_data.get("owner")
-                    else ""
-                ),
-            }
-        )
-
-    def _parse_gogs_response(self, api_data):
-        """Parse Gogs API response"""
-        self.repo_data.update(
-            {
-                "description": api_data.get("description", ""),
-                "created_at": api_data.get("created_at", ""),
-                "updated_at": api_data.get("updated_at", ""),
-                "stars": api_data.get("stars_count", 0),
-                "forks": api_data.get("forks_count", 0),
-                "watchers": api_data.get("watchers_count", 0),
-                "open_issues": api_data.get("open_issues_count", 0),
-                "homepage": api_data.get("website", ""),
-                "default_branch": api_data.get("default_branch", "master"),
-                "private": api_data.get("private", False),
-                "fork": api_data.get("fork", False),
-                "size": api_data.get("size", 0),
-                "clone_url": api_data.get("clone_url", ""),
-                "ssh_url": api_data.get("ssh_url", ""),
-                "html_url": api_data.get("html_url", ""),
-                "avatar_url": (
-                    api_data.get("owner", {}).get("avatar_url", "")
-                    if api_data.get("owner")
-                    else ""
-                ),
-            }
-        )
-
-    def _parse_sourceforge_response(self, api_data):
-        """Parse SourceForge Allura API response"""
-        self.repo_data.update(
-            {
-                "description": api_data.get("description", ""),
-                "html_url": api_data.get("url", ""),
-                "default_branch": "master",
-            }
-        )
-
-    def _parse_gerrit_response(self, api_data):
-        """Parse Gerrit REST API response"""
-        self.repo_data.update(
-            {
-                "description": api_data.get("description", ""),
-                "html_url": (
-                    api_data.get("web_links", [{}])[0].get("url", "")
-                    if api_data.get("web_links")
-                    else ""
-                ),
-                "default_branch": api_data.get("branches", {}).get("HEAD", "master"),
-            }
-        )
-
-    def _parse_launchpad_response(self, api_data):
-        """Parse Launchpad API response"""
-        self.repo_data.update(
-            {
-                "description": api_data.get("description", ""),
-                "created_at": api_data.get("date_created", ""),
-                "updated_at": api_data.get("date_last_modified", ""),
-                "html_url": api_data.get("web_link", ""),
-                "default_branch": "master",
-            }
-        )
-
     def download_avatar(self, repo_path):
         """Download user avatar if available and save with username as filename"""
         avatar_url = self.repo_data.get("avatar_url", "")
@@ -1269,263 +655,6 @@ class GitArchiver:
 
         return info_path
 
-    def _fetch_github_releases(self, owner, repo_name):
-        """Fetch releases from GitHub API"""
-        releases = []
-        page = 1
-        per_page = 100
-
-        while True:
-            url = f"https://api.github.com/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-            headers = {}
-            if self.api_token and (self.repo_data.get("git_site") == "github"):
-                headers["Authorization"] = f"token {self.api_token}"
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                break
-
-            api_releases = response.json()
-            if not api_releases:
-                break
-
-            for release in api_releases:
-                release_data = {
-                    "id": release.get("id"),
-                    "tag_name": release.get("tag_name"),
-                    "name": release.get("name", release.get("tag_name")),
-                    "body": release.get("body", ""),
-                    "draft": release.get("draft", False),
-                    "prerelease": release.get("prerelease", False),
-                    "published_at": release.get("published_at"),
-                    "zipball_url": release.get("zipball_url"),
-                    "tarball_url": release.get("tarball_url"),
-                    "assets": [],
-                }
-
-                for asset in release.get("assets", []):
-                    release_data["assets"].append(
-                        {
-                            "name": asset.get("name"),
-                            "download_url": asset.get("browser_download_url"),
-                            "size": asset.get("size"),
-                            "content_type": asset.get("content_type"),
-                        }
-                    )
-
-                releases.append(release_data)
-
-            if len(api_releases) < per_page:
-                break
-            page += 1
-
-        return releases
-
-    def _fetch_gitlab_releases(self, domain, owner, repo_name):
-        """Fetch releases from GitLab API"""
-        releases = []
-        project_id = self.repo_data.get("project_id")
-        if not project_id:
-            return releases
-
-        page = 1
-        per_page = 100
-
-        while True:
-            url = f"https://{domain}/api/v4/projects/{project_id}/releases?per_page={per_page}&page={page}"
-            headers = {}
-            if self.api_token:
-                headers["PRIVATE-TOKEN"] = self.api_token
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                break
-
-            api_releases = response.json()
-            if not api_releases:
-                break
-
-            for release in api_releases:
-                tag_name = release.get("tag_name")
-                release_data = {
-                    "tag_name": tag_name,
-                    "name": release.get("name", tag_name),
-                    "description": release.get("description", ""),
-                    "released_at": release.get("released_at"),
-                    "zipball_url": f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.zip",
-                    "tarball_url": f"https://{domain}/{owner}/{repo_name}/-/archive/{tag_name}/{repo_name}-{tag_name}.tar.gz",
-                    "assets": [],
-                }
-
-                for link in release.get("assets", {}).get("links", []):
-                    release_data["assets"].append(
-                        {
-                            "name": link.get("name"),
-                            "download_url": link.get("url"),
-                            "link_type": link.get("link_type"),
-                        }
-                    )
-
-                releases.append(release_data)
-
-            if len(api_releases) < per_page:
-                break
-            page += 1
-
-        return releases
-
-    def _fetch_gitea_releases(self, domain, owner, repo_name):
-        """Fetch releases from Gitea/Forgejo/Codeberg API"""
-        releases = []
-        page = 1
-        per_page = 50
-
-        while True:
-            url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-            headers = {}
-            if self.api_token:
-                headers["Authorization"] = f"token {self.api_token}"
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                break
-
-            api_releases = response.json()
-            if not api_releases:
-                break
-
-            for release in api_releases:
-                release_data = {
-                    "id": release.get("id"),
-                    "tag_name": release.get("tag_name"),
-                    "name": release.get("name", release.get("tag_name")),
-                    "body": release.get("body", ""),
-                    "draft": release.get("draft", False),
-                    "prerelease": release.get("prerelease", False),
-                    "published_at": release.get("published_at"),
-                    "zipball_url": release.get("zipball_url"),
-                    "tarball_url": release.get("tarball_url"),
-                    "assets": [],
-                }
-
-                for asset in release.get("assets", []):
-                    release_data["assets"].append(
-                        {
-                            "name": asset.get("name"),
-                            "download_url": asset.get("browser_download_url"),
-                            "size": asset.get("size"),
-                        }
-                    )
-
-                releases.append(release_data)
-
-            if len(api_releases) < per_page:
-                break
-            page += 1
-
-        return releases
-
-    def _fetch_gitee_releases(self, owner, repo_name):
-        """Fetch releases from Gitee API"""
-        releases = []
-        page = 1
-        per_page = 100
-
-        while True:
-            url = f"https://gitee.com/api/v5/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-            headers = {}
-            if self.api_token:
-                headers["Authorization"] = f"token {self.api_token}"
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                break
-
-            api_releases = response.json()
-            if not api_releases:
-                break
-
-            for release in api_releases:
-                release_data = {
-                    "id": release.get("id"),
-                    "tag_name": release.get("tag_name"),
-                    "name": release.get("name", release.get("tag_name")),
-                    "body": release.get("body", ""),
-                    "prerelease": release.get("prerelease", False),
-                    "created_at": release.get("created_at"),
-                    "zipball_url": release.get("zipball_url"),
-                    "tarball_url": release.get("tarball_url"),
-                    "assets": [],
-                }
-
-                for asset in release.get("assets", []):
-                    release_data["assets"].append(
-                        {
-                            "name": asset.get("name"),
-                            "download_url": asset.get("browser_download_url"),
-                            "size": asset.get("size"),
-                        }
-                    )
-
-                releases.append(release_data)
-
-            if len(api_releases) < per_page:
-                break
-            page += 1
-
-        return releases
-
-    def _fetch_gogs_releases(self, domain, owner, repo_name):
-        """Fetch releases from Gogs/Notabug API"""
-        releases = []
-        page = 1
-        per_page = 50
-
-        while True:
-            url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
-            headers = {}
-            if self.api_token:
-                headers["Authorization"] = f"token {self.api_token}"
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code != 200:
-                break
-
-            api_releases = response.json()
-            if not api_releases:
-                break
-
-            for release in api_releases:
-                release_data = {
-                    "id": release.get("id"),
-                    "tag_name": release.get("tag_name"),
-                    "name": release.get("name", release.get("tag_name")),
-                    "body": release.get("body", ""),
-                    "draft": release.get("draft", False),
-                    "prerelease": release.get("prerelease", False),
-                    "published_at": release.get("created_at"),
-                    "zipball_url": release.get("zipball_url"),
-                    "tarball_url": release.get("tarball_url"),
-                    "assets": [],
-                }
-
-                for asset in release.get("assets", []):
-                    release_data["assets"].append(
-                        {
-                            "name": asset.get("name"),
-                            "download_url": asset.get("browser_download_url"),
-                            "size": asset.get("size"),
-                        }
-                    )
-
-                releases.append(release_data)
-
-            if len(api_releases) < per_page:
-                break
-            page += 1
-
-        return releases
-
     def fetch_releases(self):
         """Fetch releases from the git provider API with pagination support"""
         domain = self.repo_data["domain"]
@@ -1535,18 +664,21 @@ class GitArchiver:
         releases = []
 
         try:
-            if domain == "github.com" or self.repo_data["git_site"] == "github":
-                releases = self._fetch_github_releases(owner, repo_name)
-            elif domain == "gitlab.com" or self.repo_data["git_site"] == "gitlab":
-                releases = self._fetch_gitlab_releases(domain, owner, repo_name)
-            elif domain in ["codeberg.org", "gitea.com"] or self.repo_data[
-                "git_site"
-            ] in ["codeberg", "gitea"]:
-                releases = self._fetch_gitea_releases(domain, owner, repo_name)
-            elif domain == "gitee.com" or self.repo_data["git_site"] == "gitee":
-                releases = self._fetch_gitee_releases(owner, repo_name)
-            elif self.repo_data["git_site"] == "gogs" or domain == "notabug.org":
-                releases = self._fetch_gogs_releases(domain, owner, repo_name)
+            provider = self._get_provider(domain)
+            if provider:
+                # For GitLab, we need to pass project_id
+                if hasattr(provider, "fetch_releases"):
+                    import inspect
+
+                    sig = inspect.signature(provider.fetch_releases)
+                    if "project_id" in sig.parameters:
+                        # GitLab needs project_id
+                        project_id = self.repo_data.get("project_id")
+                        releases = provider.fetch_releases(
+                            owner, repo_name, domain, project_id=project_id
+                        )
+                    else:
+                        releases = provider.fetch_releases(owner, repo_name, domain)
 
             self.repo_data["releases"] = releases
             if self.verbose and releases:
@@ -1562,65 +694,30 @@ class GitArchiver:
 
     def fetch_gist_comments(self):
         """Fetch comments from a GitHub Gist"""
+        if self.repo_data.get("git_site") != "gist":
+            return []
+
         gist_id = self.repo_data.get("repo_name")
-        comments = []
+        if not gist_id:
+            if self.verbose:
+                print("   No gist ID available for comment fetching")
+            return []
 
         try:
-            if self.repo_data.get("git_site") != "gist":
-                return comments
+            # Import GistProvider directly to access fetch_comments
+            from .providers.github import GistProvider
 
-            if not gist_id:
-                if self.verbose:
-                    print("   No gist ID available for comment fetching")
-                return comments
-
-            url = f"https://api.github.com/gists/{gist_id}/comments"
-            headers = {"Accept": "application/vnd.github.v3+json"}
-            if self.api_token:
-                headers["Authorization"] = f"token {self.api_token}"
-
-            if self.verbose:
-                print("   Fetching comments from gist...")
-
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                api_comments = response.json()
-
-                for comment in api_comments:
-                    comment_data = {
-                        "id": comment.get("id"),
-                        "user": comment.get("user", {}).get("login", ""),
-                        "body": comment.get("body", ""),
-                        "created_at": comment.get("created_at", ""),
-                        "updated_at": comment.get("updated_at", ""),
-                        "author_association": comment.get("author_association", ""),
-                    }
-                    comments.append(comment_data)
-
-                if self.verbose:
-                    if len(comments) > 0:
-                        print(f"   Fetched {len(comments)} comment(s)")
-                    else:
-                        print("   No comments found for this gist")
-            elif response.status_code == 404:
-                if self.verbose:
-                    print("   Gist not found or comments not accessible")
-            elif response.status_code == 403:
-                if self.verbose:
-                    print(
-                        "   Access denied - API token may be required for private gists"
-                    )
-            else:
-                if self.verbose:
-                    print(
-                        f"   Could not fetch comments (status {response.status_code})"
-                    )
+            provider = GistProvider(
+                api_token=self.api_token,
+                api_url=self.api_url,
+                verbose=self.verbose,
+            )
+            return provider.fetch_comments(gist_id)
 
         except Exception as e:
             if self.verbose:
                 print(f"   Could not fetch comments: {e}")
-
-        return comments
+            return []
 
     def save_gist_comments(self, repo_path):
         """Save gist comments to a JSON file"""
@@ -1710,7 +807,9 @@ class GitArchiver:
                 "draft": release.get("draft", False),
             }
 
-            with open(os.path.join(release_dir, f"{tag_name}.info.json"), "w") as f:
+            with open(
+                os.path.join(release_dir, f"{tag_name}.release_info.json"), "w"
+            ) as f:
                 json.dump(release_info, f, indent=2)
 
             # Download source archives

@@ -101,7 +101,7 @@ iagitbetter <git_url_or_profile> [options]
 
 ## Supported Git Providers
 
-See [`SUPPORTED_PROVIDERS.md`](SUPPORTED_PROVIDERS.md) for detailed information about each provider
+See [`supportedproviders.md`](supportedproviders.md) for detailed information about each provider
 
 ### Automatic Metadata Collection
 
@@ -444,7 +444,7 @@ src/main.py
 docs/guide.md
 {owner}-{repo}_releases/
   └── v1.0.0/
-      ├── v1.0.0.info.json
+      ├── v1.0.0.release_info.json
       ├── v1.0.0-source.zip
       └── v1.0.0-source.tar.gz
 {owner}-{repo}.bundle
@@ -539,7 +539,7 @@ git checkout branch-name
 
 When releases are archived, they can be found in the `{owner}-{repo}_releases/` directory of the archive, Each release includes:
 
-- `{version}.info.json` - Complete release metadata
+- `{version}.release_info.json` - Complete release metadata
 - `{version}.source.zip` - Source code archive
 - `{version}.source.tar.gz` - Source code tarball
 - binaries
