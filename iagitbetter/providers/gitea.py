@@ -115,8 +115,11 @@ class GiteaProvider(BaseProvider):
         per_page = 50
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided, otherwise default to domain
+        base_url = self.api_url if self.api_url else f"https://{domain}/api/v1"
+
         while True:
-            url = f"https://{domain}/api/v1/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            url = f"{base_url}/repos/{owner}/{repo_name}/releases?limit={per_page}&page={page}"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:
