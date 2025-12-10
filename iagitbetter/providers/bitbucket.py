@@ -74,7 +74,9 @@ class BitbucketProvider(BaseProvider):
     def fetch_user_repos(self, username: str, domain: str) -> list[dict[str, Any]]:
         """Fetch all repositories from Bitbucket user/workspace."""
         repos = []
-        url = f"https://api.bitbucket.org/2.0/repositories/{username}"
+        # Use custom API URL if provided, otherwise default to bitbucket.org
+        base_url = self.api_url if self.api_url else "https://api.bitbucket.org/2.0"
+        url = f"{base_url}/repositories/{username}"
         headers = self.get_auth_headers()
 
         while url:

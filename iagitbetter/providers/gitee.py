@@ -70,8 +70,11 @@ class GiteeProvider(BaseProvider):
         per_page = 100
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided, otherwise default to gitee.com
+        base_url = self.api_url if self.api_url else "https://gitee.com/api/v5"
+
         while True:
-            url = f"https://gitee.com/api/v5/users/{username}/repos?per_page={per_page}&page={page}&sort=updated"
+            url = f"{base_url}/users/{username}/repos?per_page={per_page}&page={page}&sort=updated"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code == 200:
@@ -113,8 +116,11 @@ class GiteeProvider(BaseProvider):
         per_page = 100
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided, otherwise default to gitee.com
+        base_url = self.api_url if self.api_url else "https://gitee.com/api/v5"
+
         while True:
-            url = f"https://gitee.com/api/v5/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            url = f"{base_url}/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:

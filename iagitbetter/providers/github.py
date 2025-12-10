@@ -78,8 +78,11 @@ class GitHubProvider(BaseProvider):
         per_page = 100
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided (for GitHub Enterprise), otherwise default
+        base_url = self.api_url if self.api_url else "https://api.github.com"
+
         # Detect whether the name is a User or an Organization
-        who_url = f"https://api.github.com/users/{username}"
+        who_url = f"{base_url}/users/{username}"
         entity_type = "User"
         try:
             who_resp = requests.get(who_url, headers=headers, timeout=10)
@@ -90,9 +93,9 @@ class GitHubProvider(BaseProvider):
 
         # Choose the correct listing endpoint
         base_list_path = (
-            f"https://api.github.com/orgs/{username}/repos"
+            f"{base_url}/orgs/{username}/repos"
             if entity_type == "Organization"
-            else f"https://api.github.com/users/{username}/repos"
+            else f"{base_url}/users/{username}/repos"
         )
 
         while True:
@@ -138,8 +141,11 @@ class GitHubProvider(BaseProvider):
         per_page = 100
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided (for GitHub Enterprise), otherwise default
+        base_url = self.api_url if self.api_url else "https://api.github.com"
+
         while True:
-            url = f"https://api.github.com/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
+            url = f"{base_url}/repos/{owner}/{repo_name}/releases?per_page={per_page}&page={page}"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:

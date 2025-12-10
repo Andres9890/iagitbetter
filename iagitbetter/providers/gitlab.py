@@ -146,8 +146,11 @@ class GitLabProvider(BaseProvider):
         per_page = 100
         headers = self.get_auth_headers()
 
+        # Use custom API URL if provided, otherwise default to domain
+        base_url = self.api_url if self.api_url else f"https://{domain}/api/v4"
+
         while True:
-            url = f"https://{domain}/api/v4/projects/{project_id}/releases?per_page={per_page}&page={page}"
+            url = f"{base_url}/projects/{project_id}/releases?per_page={per_page}&page={page}"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:
