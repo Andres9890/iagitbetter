@@ -72,6 +72,8 @@ class GiteaProvider(BaseProvider):
         page = 1
         per_page = 50
         headers = self.get_auth_headers()
+        # Add User-Agent header to avoid being blocked by some servers
+        headers["User-Agent"] = "iagitbetter"
 
         base_url = self.api_url if self.api_url else f"https://{domain}/api/v1"
 
@@ -114,6 +116,8 @@ class GiteaProvider(BaseProvider):
         page = 1
         per_page = 50
         headers = self.get_auth_headers()
+        # Add User-Agent header to avoid being blocked by some servers
+        headers["User-Agent"] = "iagitbetter"
 
         # Use custom API URL if provided, otherwise default to domain
         base_url = self.api_url if self.api_url else f"https://{domain}/api/v1"
@@ -123,9 +127,20 @@ class GiteaProvider(BaseProvider):
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:
+                self._log(f"   Releases API returned status {response.status_code}")
                 break
 
-            api_releases = response.json()
+            # Check if response has content before parsing
+            if not response.content or not response.text.strip():
+                self._log("   Releases API returned empty response")
+                break
+
+            try:
+                api_releases = response.json()
+            except Exception as e:
+                self._log(f"   Failed to parse releases response: {e}")
+                break
+
             if not api_releases:
                 break
 

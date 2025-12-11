@@ -246,12 +246,19 @@ class GitArchiver:
             # Get authentication headers from provider
             provider = self._get_provider(domain)
             headers = provider.get_auth_headers() if provider else {}
+            # Add User-Agent header to avoid being blocked by some servers
+            headers["User-Agent"] = f"iagitbetter/{__version__}"
 
             if self.verbose:
                 print("   Fetching metadata from API...")
 
             response = requests.get(api_url, headers=headers, timeout=10)
             if response.status_code == 200:
+                # Check if response has content before parsing
+                if not response.content or not response.text.strip():
+                    if self.verbose:
+                        print("   Note: API returned empty response")
+                    return
                 api_data = response.json()
                 self._parse_api_response(api_data)
             elif response.status_code == 404:
