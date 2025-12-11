@@ -19,7 +19,7 @@ class BitbucketProvider(BaseProvider):
 
     def get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Bitbucket API."""
-        # App Passwords: requires username + app password via basic auth
+        # Basic Auth: App Passwords or API Tokens (username + token)
         if self.api_username and self.api_token:
             token = base64.b64encode(
                 f"{self.api_username}:{self.api_token}".encode("utf-8")

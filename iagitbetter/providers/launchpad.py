@@ -17,7 +17,11 @@ class LaunchpadProvider(BaseProvider):
     def get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for Launchpad API."""
         if self.api_token:
-            return {"Authorization": f"Bearer {self.api_token}"}
+            self._log(
+                "Warning: Launchpad requires OAuth 1.0 authentication which is not "
+                "supported. The provided api_token will be ignored. Only public API "
+                "access is available."
+            )
         return {}
 
     def build_api_url(self, owner: str, repo_name: str, domain: str) -> str:
