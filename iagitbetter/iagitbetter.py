@@ -220,6 +220,24 @@ class GitArchiver:
 
         return self.repo_data
 
+    def _build_commit_url(self, commit_sha):
+        """Build the URL to view a commit on the git provider's web interface"""
+        domain = self.repo_data.get("domain", "")
+        owner = self.repo_data.get("owner", "")
+        repo_name = self.repo_data.get("repo_name", "")
+        git_site = self.repo_data.get("git_site", "")
+        base_url = self.repo_data.get("url", "")
+
+        if not base_url:
+            base_url = f"https://{domain}/{owner}/{repo_name}"
+
+        if git_site == "gitlab":
+            return f"{base_url}/-/commit/{commit_sha}"
+        elif git_site == "bitbucket":
+            return f"{base_url}/commits/{commit_sha}"
+        else:
+            return f"{base_url}/commit/{commit_sha}"
+
     def _build_api_url(self):
         """Build API URL for self-hosted or public instances"""
         owner = self.repo_data.get("owner", "")
@@ -967,8 +985,10 @@ class GitArchiver:
 
                     recent_commits = []
                     for commit in commits[:5]:
+                        commit_url = self._build_commit_url(commit.hexsha)
                         commit_details = {
                             "sha": commit.hexsha,
+                            "url": commit_url,
                             "message": commit.message.strip(),
                             "author_name": commit.author.name if commit.author else "",
                             "author_email": (
