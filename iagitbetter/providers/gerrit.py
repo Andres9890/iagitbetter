@@ -26,11 +26,11 @@ class GerritProvider(BaseProvider):
     def build_api_url(self, owner: str, repo_name: str, domain: str) -> str:
         """Build Gerrit API URL."""
         project_path = f"{owner}%2F{repo_name}"
-        
+
         # Determine if authenticated (need /a/ prefix)
         is_authenticated = bool(self.api_username and self.api_token)
         auth_prefix = "/a" if is_authenticated else ""
-        
+
         if self.api_url:
             base = self.api_url.rstrip("/")
             return f"{base}{auth_prefix}/projects/{project_path}"

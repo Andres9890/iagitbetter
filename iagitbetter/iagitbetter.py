@@ -633,21 +633,52 @@ class GitArchiver:
         info_filename = f"{self.repo_data['repo_name']}.info.json"
         info_path = os.path.join(repo_path, info_filename)
 
-        # Prepare repo info
+        readme_html = self.get_description_from_readme(repo_path)
+        if readme_html:
+            readme_oneline = re.sub(r"\s*\n\s*", "<br />", readme_html.strip())
+            readme_oneline = re.sub(r"  +", " ", readme_oneline)
+            self.repo_data["readme"] = readme_oneline
+
         repo_info = {}
-        for key, value in self.repo_data.items():
+
+        priority_keys = [
+            "url",
+            "domain",
+            "git_site",
+            "owner",
+            "repo_name",
+            "full_name",
+            "description",
+            "readme",
+            "commits",
+            "created_at",
+            "updated_at",
+            "pushed_at",
+            "first_commit_date",
+            "last_commit_date",
+            "total_commits",
+        ]
+
+        def format_value(key, value):
             if isinstance(value, datetime):
-                repo_info[key] = value.strftime("%Y-%m-%d %H:%M:%S")
+                return value.strftime("%Y-%m-%d %H:%M:%S")
             elif (
                 isinstance(value, (list, dict, str, int, float, bool)) or value is None
             ):
-                # Limit releases in file to latest 5
                 if key == "releases" and isinstance(value, list) and len(value) > 5:
-                    repo_info[key] = value[:5]
-                else:
-                    repo_info[key] = value
+                    return value[:5]
+                return value
             else:
-                repo_info[key] = str(value)
+                return str(value)
+
+        for key in priority_keys:
+            if key in self.repo_data:
+                repo_info[key] = format_value(key, self.repo_data[key])
+
+        # Add remaining keys
+        for key, value in self.repo_data.items():
+            if key not in repo_info:
+                repo_info[key] = format_value(key, value)
 
         # Add archive metadata
         repo_info["archived_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -934,6 +965,37 @@ class GitArchiver:
                     )
                     self.repo_data["total_commits"] = len(commits)
 
+                    recent_commits = []
+                    for commit in commits[:5]:
+                        commit_details = {
+                            "sha": commit.hexsha,
+                            "message": commit.message.strip(),
+                            "author_name": commit.author.name if commit.author else "",
+                            "author_email": (
+                                commit.author.email if commit.author else ""
+                            ),
+                            "committer_name": (
+                                commit.committer.name if commit.committer else ""
+                            ),
+                            "committer_email": (
+                                commit.committer.email if commit.committer else ""
+                            ),
+                            "authored_date": datetime.fromtimestamp(
+                                commit.authored_date
+                            ).strftime("%Y-%m-%d %H:%M:%S"),
+                            "committed_date": datetime.fromtimestamp(
+                                commit.committed_date
+                            ).strftime("%Y-%m-%d %H:%M:%S"),
+                            "parents": [p.hexsha for p in commit.parents],
+                            "stats": {
+                                "files_changed": commit.stats.total.get("files", 0),
+                                "insertions": commit.stats.total.get("insertions", 0),
+                                "deletions": commit.stats.total.get("deletions", 0),
+                            },
+                        }
+                        recent_commits.append(commit_details)
+                    self.repo_data["commits"] = recent_commits
+
                     if self.verbose:
                         print(
                             f"   First commit date: {self.repo_data['first_commit_date']}"
@@ -1068,9 +1130,7 @@ class GitArchiver:
 
                 except Exception as e:
                     if self.verbose:
-                        print(
-                            f"     Warning: Could not process branch {branch_name}: {e}"
-                        )
+                        print(f"     Could not process branch {branch_name}: {e}")
 
             # Checkout default branch to keep files in root
             try:
@@ -1427,12 +1487,12 @@ class GitArchiver:
         <ul>
             <li>Original Repository: <a href="{self.repo_data['url']}">{self.repo_data['url']}</a></li>
             <li>Git Provider: {self.repo_data['git_site'].title()}</li>
-            <li>Owner: {self.repo_data['owner']}</li>
+            <li>Repository Owner: {self.repo_data['owner']}</li>
             <li>Repository Name: {self.repo_data['repo_name']}</li>
-            <li>First Commit: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
-            <li>Last Commit: {self.repo_data.get('last_commit_date', archive_date).strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>First Commit Date: {repo_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>Last Commit Date: {self.repo_data.get('last_commit_date', archive_date).strftime('%Y-%m-%d %H:%M:%S')}</li>
             <li>Total Commits: {self.repo_data.get('total_commits', 'Unknown')}</li>
-            <li>Archived: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
+            <li>Archived Date: {archive_date.strftime('%Y-%m-%d %H:%M:%S')}</li>
         </ul>
         <p>To restore the repository, download the bundle:</p>
         <pre><code>wget https://archive.org/download/{identifier}/{bundle_filename}</code></pre>
@@ -1460,7 +1520,7 @@ class GitArchiver:
             description_footer = ""
 
         if self.repo_data.get("description"):
-            return f"<br/>{self.repo_data['description']}<br/><br/>{readme_description}{description_footer}"
+            return f"<br/>{self.repo_data['description']}<br/><hr/>{readme_description}{description_footer}"
         else:
             return f"{readme_description}{description_footer}"
 
@@ -1929,6 +1989,7 @@ class GitArchiver:
         all_releases=False,
         bundle_only=False,
         create_repo_info=True,
+        include_repo_info_in_description=False,
     ):
         """Main execution flow."""
         self.verbose = verbose
@@ -1972,6 +2033,7 @@ class GitArchiver:
             specific_branch=specific_branch,
             bundle_only=bundle_only,
             create_repo_info=create_repo_info,
+            include_repo_info_in_description=include_repo_info_in_description,
         )
 
         # Cleanup
@@ -2024,6 +2086,11 @@ Examples:
         "--no-repo-info",
         action="store_true",
         help="Skip creating the repository info JSON file",
+    )
+    parser.add_argument(
+        "--include-repo-info-in-description",
+        action="store_true",
+        help="Include repository information section in the IA description",
     )
     parser.add_argument(
         "--releases", action="store_true", help="Download releases from the repository"
@@ -2099,6 +2166,7 @@ Examples:
             all_releases=args.all_releases,
             bundle_only=args.bundle_only,
             create_repo_info=not args.no_repo_info,
+            include_repo_info_in_description=args.include_repo_info_in_description,
         )
         if identifier:
             print("\n" + "=" * 60)
