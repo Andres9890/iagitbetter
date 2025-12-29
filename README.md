@@ -16,11 +16,11 @@
 
 iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
 
-- This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them (also credits to [tubeup](https://github.com/bibanon/tubeup) by bibanon for taking some stuff and modifying them)
+- This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them (also credits to [tubeup](https://github.com/bibanon/tubeup) by Bibliotheca Anonoma for taking some stuff and modifying them)
 
 ## Features
 
-- Works with ALL git providers (GitHub, GitLab, BitBucket, Codeberg, Gitea, Gitee, Gogs, SourceForge, and more)
+- Works with ALL git providers (GitHub, GitLab, Gitea, etc)
 - Archive all repositories from a user or organization with options
 - Self-hosted git instance support (GitLab, Gitea, Forgejo, Gogs, Gerrit, etc)
 - Downloads and uploads the entire repository file structure
@@ -58,12 +58,12 @@ You'll be prompted to enter your Internet Archive account's email and password.
 ## Usage
 
 ```bash
-iagitbetter <git_url_or_profile> [options]
+iagitbetter <url> [options]
 ```
 
 ### Basic Arguments
 
-- `<git_url_or_profile>` – Git repository URL or user/organization profile URL to archive
+- `<url>` – Git repository URL or user/organization profile URL to archive
 
 ### Options
 
@@ -95,9 +95,10 @@ iagitbetter <git_url_or_profile> [options]
 
 ### Self-Hosted Instance Options
 
-- `--git-provider-type {github,gitlab,gitea,bitbucket,gogs,gitee,gerrit,sourceforge,launchpad}` – specify the git provider type for self-hosted instances
+- `--git-provider-type {github,gitlab,gitea,bitbucket,gitee,gogs,sourceforge,gerrit,launchpad,gist}` – specify the git provider type for self-hosted instances
 - `--api-url <url>` – custom API URL for self-hosted instances (e.g., `https://git.example.com/api/v1`)
 - `--api-token <token>` – API token for authentication with private/self-hosted repositories
+- `--api-username <username>` – username for Bitbucket App Passwords (used with `--api-token` for basic auth)
 
 ## Supported Git Providers
 
@@ -120,7 +121,7 @@ For supported providers, iagitbetter automatically fetches:
 
 ### Release Support
 
-For providers that support releases (GitHub, GitLab, Codeberg, Gitea, Gitee, Gogs, SourceForge), iagitbetter can:
+For providers that support releases (GitHub, GitLab, Gitea, etc), iagitbetter can:
 - Download the latest release or all releases
 - Include release assets and attachments
 - Download source code archives (zip/tar.gz)
@@ -445,8 +446,8 @@ docs/guide.md
 {owner}-{repo}_releases/
   └── v1.0.0/
       ├── v1.0.0.release_info.json
-      ├── v1.0.0-source.zip
-      └── v1.0.0-source.tar.gz
+      ├── v1.0.0.source.zip
+      └── v1.0.0.source.tar.gz
 {owner}-{repo}.bundle
 ```
 
