@@ -3,6 +3,8 @@ GitLab provider implementation.
 Handles gitlab.com and self-hosted GitLab instances.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import requests

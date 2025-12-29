@@ -5,6 +5,8 @@ This module provides a unified interface for interacting with different
 git hosting providers (GitHub, GitLab, Bitbucket, etc.).
 """
 
+from __future__ import annotations
+
 from typing import Type
 
 from .base import BaseProvider

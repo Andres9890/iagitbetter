@@ -3,6 +3,8 @@ Base provider class for git hosting services.
 All provider implementations should inherit from this class.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
 
