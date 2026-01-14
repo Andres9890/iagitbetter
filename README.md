@@ -20,22 +20,19 @@ iagitbetter is a python tool for archiving any git repository to the [Internet A
 
 ## Features
 
-- Works with ALL git providers (GitHub, GitLab, Gitea, etc)
+- Works with all git providers (GitHub, GitLab, Gitea, etc)
 - Archive all repositories from a user or organization with options
 - Self-hosted git instance support (GitLab, Gitea, Forgejo, Gogs, Gerrit, etc)
 - Downloads and uploads the entire repository file structure
-- Preserves provider directories like `.github/`, `.gitlab/`, `.gitea/` folders
+- Preserves provider directories like `.github/`, `.gitlab/`, `.gitea/`
 - Download repository releases with assets from supported providers
 - Clone and archive all branches of a repository with proper directory structure
-- Automatically fetches repository metadata from git provider APIs when available
-- API token authentication for private and self-hosted repositories
-- Uses format `{owner} - {repo}` for item titles
+- Automatically fetches repository metadata from git provider APIs (when available)
+- API token authentication for repositories
 - Includes stars, forks, programming language, license, topics, and more metadata
-- Keeps the original repository folder structure in the archive
-- Creates git bundles for complete repository restoration
+- Creates git bundles
 - Uses the first commit date as the repo creation date
 - Pass additional metadata using `--metadata=<key:value>`
-- Removes temporary files after upload
 
 ## Installation
 
@@ -45,7 +42,7 @@ Requires Python 3.9 or newer
 pip install iagitbetter
 ```
 
-The package makes a console script named `iagitbetter` once installed. You can also install from the source using `pip install .`
+The package makes a console script named `iagitbetter` once installed. You can also install from the source via cloning the repo and running `pip install .`
 
 ## Configuration
 
@@ -71,7 +68,7 @@ iagitbetter <url> [options]
 - `--all-files` – upload all repository files in addition to git bundle (by default, only the bundle is uploaded)
 - `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
-- `--no-update-check` – skip checking for updates on PyPI
+- `--no-update-check` – skip checking for updates
 - `--no-info-file` – skip creating the repository info JSON file
 - `--no-repo-info` – skip adding repository information to the Internet Archive item description
 
@@ -97,7 +94,7 @@ iagitbetter <url> [options]
 
 - `--git-provider-type {github,gitlab,gitea,bitbucket,gitee,gogs,sourceforge,gerrit,launchpad,gist}` – specify the git provider type for self-hosted instances
 - `--api-url <url>` – custom API URL for self-hosted instances (e.g., `https://git.example.com/api/v1`)
-- `--api-token <token>` – API token for authentication with private/self-hosted repositories
+- `--api-token <token>` – API token for authentication with repositories
 - `--api-username <username>` – username for Bitbucket App Passwords (used with `--api-token` for basic auth)
 
 ## Supported Git Providers
@@ -151,7 +148,7 @@ iagitbetter https://gitee.com/user/repository
 # Archive from Gogs instance
 iagitbetter --git-provider-type gogs https://gogs.example.com/user/repository
 
-# Archive from SourceForge (Git repos only)
+# Archive from SourceForge
 iagitbetter https://sourceforge.net/p/project/dog/
 
 # Archive from GitHub Gist
@@ -188,7 +185,7 @@ iagitbetter https://github.com/username --skip-forks
 # Skip archived repositories
 iagitbetter https://github.com/username --skip-archived
 
-# Skip private repositories (useful with API token)
+# Skip private repositories
 iagitbetter https://github.com/username --api-token TOKEN --skip-private
 
 # Combine multiple filters
@@ -213,7 +210,7 @@ iagitbetter https://github.com/username --all-branches
 # Combine profile archiving with multiple features
 iagitbetter https://github.com/username --skip-forks --releases --all-branches
 
-# Quiet mode for profile archiving (less verbose output)
+# Quiet mode for profile archiving
 iagitbetter https://github.com/username --skip-forks --quiet
 ```
 
@@ -231,7 +228,7 @@ iagitbetter https://git.example.com/organization \
   --api-token your_token_here
 
 # Self-hosted with filters
-iagitbetter https://gitlab.company.com/team \
+iagitbetter https://gitlab.example.com/team \
   --git-provider-type gitlab \
   --api-token TOKEN \
   --skip-forks \
@@ -361,41 +358,9 @@ Successfully archived repositories:
   ...
 ```
 
-## API Token Generation
-
-### GitHub - GitHub Enterprise
-1. Go to Settings → Developer settings → Personal access tokens
-2. Generate new token (classic) with `repo` scope
-3. Use with `--api-token ghp_...`
-
-### GitLab - Self-Hosted GitLab
-1. Go to User Settings → Access Tokens
-2. Create token with `read_api` and `read_repository` scopes
-3. Use with `--api-token glpat-...`
-
-### Gitea - Forgejo
-1. Go to Settings → Applications → Generate New Token
-2. Select `read:repository` permission
-3. Use with `--api-token ...`
-
-### Gitee
-1. Go to Settings → Private Tokens → Generate New Token
-2. Select repository access scopes
-3. Use with `--api-token ...`
-
-### Gogs
-1. Go to Settings → Applications → Generate New Token
-2. This is experimental API support
-3. Use with `--api-token ...`
-
-### SourceForge
-1. Go to https://sourceforge.net/auth/oauth/
-2. Generate OAuth bearer token
-3. Use with `--api-token BEARER_TOKEN`
-
 ## Repository Structure Preservation
 
-By default, iagitbetter preserves the complete repository structure when uploading to Internet Archive. For example, if your repository contains:
+When using the `--all-files` flag, iagitbetter preserves the complete repository structure when uploading to Internet Archive. For example, if your repository contains:
 
 ```
 README.md
