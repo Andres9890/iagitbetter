@@ -14,7 +14,7 @@
 [![Unit Tests](https://github.com/Andres9890/iagitbetter/actions/workflows/unit-test.yml/badge.svg)](https://github.com/Andres9890/iagitbetter/actions/workflows/unit-test.yml)
 [![Downloads Badge]][Downloads Link]
 
-iagitbetter is a python tool for archiving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
+iagitbetter is a python tool for preserving any git repository to the [Internet Archive](https://archive.org/), An improved version of iagitup with support for all git providers, it downloads the complete repository, creates git bundles, uploads all files preserving structure, and archives to archive.org
 
 - This project is heavily based off [iagitup](https://github.com/gdamdam/iagitup) by Giovanni Damiola, credits to them (also credits to [tubeup](https://github.com/bibanon/tubeup) by Bibliotheca Anonoma for taking some stuff and modifying them)
 

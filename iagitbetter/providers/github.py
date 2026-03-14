@@ -19,7 +19,10 @@ class GitHubProvider(BaseProvider):
     def get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for GitHub API."""
         if self.api_token:
-            return {"Authorization": f"token {self.api_token}"}
+            return {
+                "Authorization": f"Bearer {self.api_token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
         return {}
 
     def build_api_url(self, owner: str, repo_name: str, domain: str) -> str:
@@ -197,7 +200,10 @@ class GistProvider(BaseProvider):
     def get_auth_headers(self) -> dict[str, str]:
         """Get authentication headers for GitHub API."""
         if self.api_token:
-            return {"Authorization": f"token {self.api_token}"}
+            return {
+                "Authorization": f"Bearer {self.api_token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
         return {}
 
     def build_api_url(self, owner: str, repo_name: str, domain: str) -> str:

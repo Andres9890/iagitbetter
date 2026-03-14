@@ -23,7 +23,7 @@ setup(
     name="iagitbetter",
     version=get_version(),
     author="Andres99",
-    description="Archiving any git repository to the Internet Archive",
+    description="Preserving any git repository to the Internet Archive",
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     url="https://github.com/Andres9890/iagitbetter",
@@ -51,10 +51,10 @@ setup(
     },
     install_requires=[
         "requests>=2.32.5",
-        "internetarchive>=5.5.1",
-        "GitPython>=3.1.45",
-        "markdown2>=2.5.4",
-        "docutils>=0.22.2",
+        "internetarchive>=5.8.0",
+        "GitPython>=3.1.46",
+        "markdown2>=2.5.5",
+        "docutils>=0.22.4",
     ],
     extras_require={
         "dev": [
