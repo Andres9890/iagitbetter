@@ -1812,6 +1812,13 @@ class GitArchiver:
         if info_path and os.path.exists(info_path):
             files_to_upload[info_filename] = info_path
 
+        if self.repo_data.get("git_site") == "gist":
+            gist_id = self.repo_data.get("repo_name")
+            comments_filename = f"{gist_id}.comments.json"
+            comments_path = os.path.join(repo_path, comments_filename)
+            if os.path.exists(comments_path):
+                files_to_upload[comments_filename] = comments_path
+
         username = self.repo_data["owner"]
         for ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
             avatar_filename = f"{username}{ext}"
@@ -1881,6 +1888,12 @@ class GitArchiver:
             components.append("Wiki git bundle")
         if info_filename:
             components.append("Repository info file")
+
+        if self.repo_data.get("git_site") == "gist":
+            gist_id = self.repo_data.get("repo_name")
+            comments_filename = f"{gist_id}.comments.json"
+            if comments_filename in files_to_upload:
+                components.append("Gist comments")
 
         avatar_included = any(
             f.startswith(username)
