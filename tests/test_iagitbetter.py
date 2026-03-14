@@ -1390,7 +1390,7 @@ class LfsTests(unittest.TestCase):
             result = _fetch_and_archive_lfs(tmp_dir, "test_bundle")
 
             self.assertEqual(mock_check_call.call_count, 1)
-            expected_archive = Path(tmp_dir) / "test_bundle.lfs-objects.tar.gz"
+            expected_archive = Path(tmp_dir) / "test_bundle.lfs_objects.tar.gz"
             self.assertEqual(result, expected_archive)
 
 

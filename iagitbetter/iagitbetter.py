@@ -96,7 +96,7 @@ def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
     if not lfs_dir.exists() or not any(lfs_dir.iterdir()):
         return None
 
-    archive_path = Path(repo_folder_path) / f"{archive_name_stem}.lfs-objects.tar.gz"
+    archive_path = Path(repo_folder_path) / f"{archive_name_stem}.lfs_objects.tar.gz"
     try:
         with tarfile.open(archive_path, "w:gz") as tar:
             tar.add(str(lfs_dir), arcname="lfs")
@@ -2034,7 +2034,7 @@ class GitArchiver:
                 lfs_archive_path = _fetch_and_archive_lfs(repo_path, archive_name_stem)
                 if lfs_archive_path:
                     metadata["has_lfs"] = "true"
-                    files_to_upload[f"{archive_name_stem}.lfs-objects.tar.gz"] = str(
+                    files_to_upload[f"{archive_name_stem}.lfs_objects.tar.gz"] = str(
                         lfs_archive_path
                     )
 
