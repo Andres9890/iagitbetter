@@ -29,12 +29,62 @@ import requests
 from internetarchive.config import parse_config_file
 from markdown2 import markdown_path
 
+from pathlib import Path
+
 # Import provider registry
 from .providers import (
     detect_git_site,
     get_provider_by_name,
     get_provider_for_domain,
 )
+
+
+def _is_lfs_installed():
+    """Return True if the git-lfs binary is on PATH."""
+    return shutil.which("git-lfs") is not None
+
+
+def _detect_lfs(repo_folder_path):
+    """Return True if the repo uses Git LFS."""
+    gitattributes = Path(repo_folder_path) / ".gitattributes"
+    if not gitattributes.exists():
+        return False
+    try:
+        content = gitattributes.read_text(encoding="utf-8", errors="replace")
+        return "filter=lfs" in content
+    except OSError:
+        return False
+
+
+def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
+    """Fetch all LFS objects and create a tar.gz archive of .git/lfs/"""
+    if not _is_lfs_installed():
+        print("Warning: git-lfs is not installed — LFS objects will not be included")
+        return None
+
+    try:
+        subprocess.check_call(
+            ["git", "lfs", "fetch", "--all"],
+            cwd=repo_folder_path,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Warning: git lfs fetch failed — LFS objects will be missing: {exc}")
+        return None
+
+    lfs_dir = Path(repo_folder_path) / ".git" / "lfs"
+    if not lfs_dir.exists() or not any(lfs_dir.iterdir()):
+        return None
+
+    archive_path = Path(repo_folder_path) / f"{archive_name_stem}.lfs-objects.tar.gz"
+    try:
+        subprocess.check_call(
+            ["tar", "-czf", str(archive_path), "-C", str(Path(repo_folder_path) / ".git"), "lfs"],
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"Warning: Failed to create LFS archive: {exc}")
+        return None
+
+    return archive_path
 
 
 def get_latest_pypi_version(package_name="iagitbetter"):
@@ -1881,6 +1931,16 @@ class GitArchiver:
             files_to_upload, bundle_filename = self._prepare_base_files(
                 repo_path, create_repo_info
             )
+            
+            # Detect and archive LFS objects if any
+            archive_name_stem = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}"
+            if _detect_lfs(repo_path):
+                if self.verbose:
+                    print("   Git LFS detected — fetching LFS objects...")
+                lfs_archive_path = _fetch_and_archive_lfs(repo_path, archive_name_stem)
+                if lfs_archive_path:
+                    metadata["has_lfs"] = "true"
+                    files_to_upload[f"{archive_name_stem}.lfs-objects.tar.gz"] = str(lfs_archive_path)
             info_filename = next(
                 (k for k in files_to_upload.keys() if k.endswith("_info.json")), None
             )

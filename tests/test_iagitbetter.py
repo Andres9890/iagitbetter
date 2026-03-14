@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import requests_mock
 
 from iagitbetter import __version__
-from iagitbetter.iagitbetter import GitArchiver
+from iagitbetter.iagitbetter import GitArchiver, _detect_lfs, _is_lfs_installed, _fetch_and_archive_lfs
 
 from .constants import (
     github_api_response,
@@ -1234,6 +1234,65 @@ class ProfileArchiverTests(unittest.TestCase):
         self.assertIsInstance(repo_info["fork"], bool)
         self.assertIsInstance(repo_info["archived"], bool)
         self.assertIsInstance(repo_info["private"], bool)
+
+
+class LfsTests(unittest.TestCase):
+    """Tests for Git LFS detection and archiving."""
+
+    def test_detects_lfs_in_gitattributes(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            gitattributes_path = os.path.join(tmp_dir, ".gitattributes")
+            with open(gitattributes_path, "w") as f:
+                f.write("*.bin filter=lfs diff=lfs merge=lfs -text\n")
+            self.assertTrue(_detect_lfs(tmp_dir))
+
+    def test_no_lfs_in_gitattributes(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            gitattributes_path = os.path.join(tmp_dir, ".gitattributes")
+            with open(gitattributes_path, "w") as f:
+                f.write("*.txt text\n")
+            self.assertFalse(_detect_lfs(tmp_dir))
+
+    def test_no_gitattributes_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.assertFalse(_detect_lfs(tmp_dir))
+
+    @patch("iagitbetter.iagitbetter.shutil.which")
+    def test_is_lfs_installed(self, mock_which):
+        mock_which.return_value = "/usr/bin/git-lfs"
+        self.assertTrue(_is_lfs_installed())
+        mock_which.return_value = None
+        self.assertFalse(_is_lfs_installed())
+
+    @patch("iagitbetter.iagitbetter._is_lfs_installed", return_value=False)
+    def test_fetch_and_archive_returns_none_if_not_installed(self, mock_is_lfs_installed):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = _fetch_and_archive_lfs(tmp_dir, "test_bundle")
+            self.assertIsNone(result)
+
+    @patch("iagitbetter.iagitbetter._is_lfs_installed", return_value=True)
+    @patch("subprocess.check_call")
+    def test_fetch_and_archive_returns_none_if_fetch_fails(self, mock_check_call, mock_is_lfs_installed):
+        import subprocess
+        mock_check_call.side_effect = subprocess.CalledProcessError(1, "git lfs fetch")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = _fetch_and_archive_lfs(tmp_dir, "test_bundle")
+            self.assertIsNone(result)
+
+    @patch("iagitbetter.iagitbetter._is_lfs_installed", return_value=True)
+    @patch("subprocess.check_call")
+    def test_fetch_and_archive_success(self, mock_check_call, mock_is_lfs_installed):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            lfs_dir = Path(tmp_dir) / ".git" / "lfs"
+            lfs_dir.mkdir(parents=True)
+            (lfs_dir / "fake_object").write_text("data")
+            
+            result = _fetch_and_archive_lfs(tmp_dir, "test_bundle")
+            
+            self.assertEqual(mock_check_call.call_count, 2)
+            expected_archive = Path(tmp_dir) / "test_bundle_lfs.tar.gz"
+            self.assertEqual(result, expected_archive)
 
 
 if __name__ == "__main__":
