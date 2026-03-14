@@ -18,6 +18,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.request
 from datetime import datetime
@@ -46,14 +47,32 @@ def _is_lfs_installed():
 
 def _detect_lfs(repo_folder_path):
     """Return True if the repo uses Git LFS."""
-    gitattributes = Path(repo_folder_path) / ".gitattributes"
-    if not gitattributes.exists():
-        return False
-    try:
-        content = gitattributes.read_text(encoding="utf-8", errors="replace")
-        return "filter=lfs" in content
-    except OSError:
-        return False
+    git_exe = shutil.which("git")
+    if git_exe:
+        try:
+            output = subprocess.check_output(
+                [git_exe, "check-attr", "filter", "--", "."],
+                cwd=repo_folder_path,
+                stderr=subprocess.DEVNULL,
+                universal_newlines=True,
+            )
+            if "lfs" in output:
+                return True
+        except (subprocess.CalledProcessError, OSError):
+            pass
+
+    paths_to_check = [Path(repo_folder_path)] + list(Path(repo_folder_path).parents)
+    for p in paths_to_check:
+        gitattributes = p / ".gitattributes"
+        if gitattributes.exists():
+            try:
+                content = gitattributes.read_text(encoding="utf-8", errors="replace")
+                if "filter=lfs" in content:
+                    return True
+            except OSError:
+                continue
+
+    return False
 
 
 def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
@@ -62,9 +81,14 @@ def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
         print("Warning: git-lfs is not installed — LFS objects will not be included")
         return None
 
+    git_exe = shutil.which("git")
+    if not git_exe:
+        print("Error: git executable not found.")
+        return None
+
     try:
         subprocess.check_call(
-            ["git", "lfs", "fetch", "--all"],
+            [git_exe, "lfs", "fetch", "--all"],
             cwd=repo_folder_path,
         )
     except subprocess.CalledProcessError as exc:
@@ -77,17 +101,9 @@ def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
 
     archive_path = Path(repo_folder_path) / f"{archive_name_stem}.lfs-objects.tar.gz"
     try:
-        subprocess.check_call(
-            [
-                "tar",
-                "-czf",
-                str(archive_path),
-                "-C",
-                str(Path(repo_folder_path) / ".git"),
-                "lfs",
-            ],
-        )
-    except subprocess.CalledProcessError as exc:
+        with tarfile.open(archive_path, "w:gz") as tar:
+            tar.add(str(lfs_dir), arcname="lfs")
+    except Exception as exc:
         print(f"Warning: Failed to create LFS archive: {exc}")
         return None
 
