@@ -196,6 +196,11 @@ Key improvements over iagitup:
         action="store_true",
         help="Skip adding repository information to the Internet Archive item description",
     )
+    parser.add_argument(
+        "--include-wiki",
+        action="store_true",
+        help="Clone and archive the repository wiki (if it exists)",
+    )
 
     release_group = parser.add_argument_group(
         "release options", "Download releases from supported git providers"
@@ -334,6 +339,9 @@ def _build_archive_components_list(args):
     if not args.no_info_file:
         archive_components.append("Repository info file")
 
+    if getattr(args, "include_wiki", False):
+        archive_components.append("Wiki")
+
     return archive_components
 
 
@@ -378,6 +386,8 @@ def archive_single_repository(archiver, url, args, verbose, num_releases=None):
             bundle_only=not args.all_files,
             create_repo_info=not args.no_info_file,
             include_repo_info_in_description=not args.no_repo_info,
+            include_wiki=getattr(args, "include_wiki", False),
+            repo_url=url,
         )
 
         return identifier, metadata
