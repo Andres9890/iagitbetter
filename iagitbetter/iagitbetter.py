@@ -288,7 +288,7 @@ class GitArchiver:
         # Try to fetch additional metadata from API if available
         self._fetch_api_metadata()
 
-        if self.repo_data.get("has_wiki"):
+        if self.repo_data.get("has_wiki") and not self.repo_data.get("wiki_url"):
             self.repo_data["wiki_url"] = f"{self.repo_data['url']}.wiki.git"
 
         return self.repo_data
@@ -1009,6 +1009,8 @@ class GitArchiver:
 
     def clone_repository(self, repo_url, all_branches=False, specific_branch=None):
         """Clone the git repository to a temporary directory."""
+        clone_url = self.repo_data.get("clone_url") or repo_url
+
         if self.verbose:
             if all_branches:
                 branch_info = "all branches"
@@ -1016,7 +1018,7 @@ class GitArchiver:
                 branch_info = f"branch: {specific_branch}"
             else:
                 branch_info = "default branch"
-            print(f"Cloning repository from {repo_url} ({branch_info})...")
+            print(f"Cloning repository from {clone_url} ({branch_info})...")
 
         # Create temporary directory
         self.temp_dir = tempfile.mkdtemp(prefix="iagitbetter_")
@@ -1027,12 +1029,12 @@ class GitArchiver:
             if specific_branch:
                 # Clone specific branch only
                 repo = git.Repo.clone_from(
-                    repo_url, repo_path, branch=specific_branch, single_branch=True
+                    clone_url, repo_path, branch=specific_branch, single_branch=True
                 )
                 self.repo_data["specific_branch"] = specific_branch
             else:
                 # Clone all branches (default behavior)
-                repo = git.Repo.clone_from(repo_url, repo_path)
+                repo = git.Repo.clone_from(clone_url, repo_path)
 
             # Ensure the repository path exists even when using lightweight test doubles
             os.makedirs(repo_path, exist_ok=True)
@@ -1273,12 +1275,8 @@ class GitArchiver:
         if not self.repo_data.get("has_wiki"):
             return None
 
-        # Clean URL to ensure we append properly
-        clean_url = repo_url.rstrip("/")
-        if clean_url.endswith(".git"):
-            clean_url = clean_url[:-4]
+        wiki_url = self.repo_data.get("wiki_url") or repo_url
 
-        wiki_url = f"{clean_url}.wiki.git"
         wiki_temp_dir = os.path.join(self.temp_dir, "wiki_temp")
 
         original_dir = os.getcwd()

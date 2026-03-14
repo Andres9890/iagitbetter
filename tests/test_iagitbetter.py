@@ -195,6 +195,94 @@ class GitArchiverTests(unittest.TestCase):
 
         shutil.rmtree(temp_dir)
 
+    def test_archive_wiki_no_wiki(self):
+        """Test archiving wiki when repository has no wiki"""
+        self.archiver.repo_data = {"has_wiki": False}
+        result = self.archiver._archive_wiki(
+            "https://github.com/test/repo", "/tmp/path", "test-repo"
+        )
+        self.assertIsNone(result)
+
+    def test_archive_wiki_success(self):
+        """Test successful wiki cloning and bundling"""
+        self.archiver.repo_data = {
+            "has_wiki": True,
+            "wiki_url": "https://github.com/test/repo.wiki.git",
+        }
+        self.archiver.temp_dir = "/tmp/fake_dir"
+
+        with (
+            patch("subprocess.check_call") as mock_call,
+            patch("os.chdir") as mock_chdir,
+            patch("os.getcwd", return_value="/original/dir"),
+        ):
+
+            result = self.archiver._archive_wiki(
+                "https://github.com/test/repo", "/target/folder", "test-archive"
+            )
+
+            self.assertEqual(
+                result, os.path.join("/target/folder", "test-archive.wiki.bundle")
+            )
+            self.assertEqual(mock_call.call_count, 2)
+
+            # Check clone call
+            clone_call = mock_call.call_args_list[0]
+            self.assertEqual(clone_call[0][0][0:3], ["git", "clone", "--mirror"])
+            self.assertEqual(
+                clone_call[0][0][3], "https://github.com/test/repo.wiki.git"
+            )
+
+            # Check bundle call
+            bundle_call = mock_call.call_args_list[1]
+            self.assertEqual(bundle_call[0][0][0:3], ["git", "bundle", "create"])
+            self.assertEqual(
+                bundle_call[0][0][3],
+                os.path.join("/target/folder", "test-archive.wiki.bundle"),
+            )
+
+    def test_archive_wiki_clone_failure(self):
+        """Test wiki archiving when clone fails (e.g, empty wiki)"""
+        self.archiver.repo_data = {
+            "has_wiki": True,
+            "wiki_url": "https://github.com/test/repo.wiki.git",
+        }
+        self.archiver.temp_dir = "/tmp/fake_dir"
+
+        import subprocess
+
+        with (
+            patch(
+                "subprocess.check_call",
+                side_effect=subprocess.CalledProcessError(1, "git"),
+            ),
+            patch("os.chdir"),
+            patch("os.getcwd", return_value="/original/dir"),
+        ):
+
+            result = self.archiver._archive_wiki(
+                "https://github.com/test/repo", "/target/folder", "test-archive"
+            )
+
+            self.assertIsNone(result)
+
+    def test_archive_wiki_unexpected_error(self):
+        """Test wiki archiving when an unexpected error occurs"""
+        self.archiver.repo_data = {"has_wiki": True}
+        self.archiver.temp_dir = "/tmp/fake_dir"
+
+        with (
+            patch("subprocess.check_call", side_effect=Exception("Unexpected error")),
+            patch("os.chdir"),
+            patch("os.getcwd", return_value="/original/dir"),
+        ):
+
+            result = self.archiver._archive_wiki(
+                "https://github.com/test/repo", "/target/folder", "test-archive"
+            )
+
+            self.assertIsNone(result)
+
     def test_get_all_files(self):
         """Test getting all files from repository"""
         temp_dir, repo_path = copy_test_repository_to_temp()
