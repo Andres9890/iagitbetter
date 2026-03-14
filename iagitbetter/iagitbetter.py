@@ -51,26 +51,23 @@ def _detect_lfs(repo_folder_path):
     if git_exe:
         try:
             output = subprocess.check_output(
-                [git_exe, "check-attr", "filter", "--", "."],
+                [git_exe, "lfs", "ls-files"],
                 cwd=repo_folder_path,
                 stderr=subprocess.DEVNULL,
                 universal_newlines=True,
             )
-            if "lfs" in output:
+            if output.strip():
                 return True
         except (subprocess.CalledProcessError, OSError):
             pass
 
-    paths_to_check = [Path(repo_folder_path)] + list(Path(repo_folder_path).parents)
-    for p in paths_to_check:
-        gitattributes = p / ".gitattributes"
-        if gitattributes.exists():
-            try:
-                content = gitattributes.read_text(encoding="utf-8", errors="replace")
-                if "filter=lfs" in content:
-                    return True
-            except OSError:
-                continue
+    for gitattributes in Path(repo_folder_path).rglob(".gitattributes"):
+        try:
+            content = gitattributes.read_text(encoding="utf-8", errors="replace")
+            if "filter=lfs" in content:
+                return True
+        except OSError:
+            continue
 
     return False
 
@@ -103,7 +100,7 @@ def _fetch_and_archive_lfs(repo_folder_path, archive_name_stem):
     try:
         with tarfile.open(archive_path, "w:gz") as tar:
             tar.add(str(lfs_dir), arcname="lfs")
-    except Exception as exc:
+    except (tarfile.TarError, OSError) as exc:
         print(f"Warning: Failed to create LFS archive: {exc}")
         return None
 
