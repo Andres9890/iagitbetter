@@ -288,6 +288,9 @@ class GitArchiver:
         # Try to fetch additional metadata from API if available
         self._fetch_api_metadata()
 
+        if self.repo_data.get("has_wiki"):
+            self.repo_data["wiki_url"] = f"{self.repo_data['url']}.wiki.git"
+
         return self.repo_data
 
     def _build_commit_url(self, commit_sha):
@@ -733,6 +736,7 @@ class GitArchiver:
             "url",
             "domain",
             "git_site",
+            "wiki_url",
             "owner",
             "repo_name",
             "full_name",
@@ -1262,6 +1266,66 @@ class GitArchiver:
             return bundle_path
         except Exception as e:
             print(f"Error creating bundle: {e}")
+            return None
+
+    def _archive_wiki(self, repo_url, repo_folder_path, archive_name_stem):
+        """Clone the repository wiki and create a bundle for it."""
+        if not self.repo_data.get("has_wiki"):
+            return None
+
+        # Clean URL to ensure we append properly
+        clean_url = repo_url.rstrip("/")
+        if clean_url.endswith(".git"):
+            clean_url = clean_url[:-4]
+
+        wiki_url = f"{clean_url}.wiki.git"
+        wiki_temp_dir = os.path.join(self.temp_dir, "wiki_temp")
+
+        original_dir = os.getcwd()
+        try:
+            if self.verbose:
+                print(f"   Cloning wiki from {wiki_url}...")
+
+            # Using bare/mirror clone to get all references cleanly
+            subprocess.check_call(
+                ["git", "clone", "--mirror", wiki_url, wiki_temp_dir],
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+            )
+
+            wiki_bundle_name = f"{archive_name_stem}.wiki.bundle"
+            wiki_bundle_path = os.path.join(repo_folder_path, wiki_bundle_name)
+
+            if self.verbose:
+                print("   Creating wiki git bundle...")
+
+            os.chdir(wiki_temp_dir)
+
+            # Create bundle with all branches and tags
+            subprocess.check_call(
+                ["git", "bundle", "create", wiki_bundle_path, "--all"],
+                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+            )
+
+            os.chdir(original_dir)
+
+            if self.verbose:
+                print(f"   Wiki bundle created: {wiki_bundle_name}")
+
+            return wiki_bundle_path
+
+        except subprocess.CalledProcessError:
+            if self.verbose:
+                print(
+                    "   Warning: Wiki detected in metadata but could not be cloned, It may be empty."
+                )
+            os.chdir(original_dir)
+            return None
+        except Exception as e:
+            if self.verbose:
+                print(f"   Warning: Unexpected error while archiving wiki: {e}")
+            os.chdir(original_dir)
             return None
 
     def _should_skip_directory(self, root):
@@ -1794,6 +1858,7 @@ class GitArchiver:
         includes_all_branches,
         includes_releases,
         username,
+        include_wiki=False,
     ):
         """Print information about upload components"""
         if not self.verbose:
@@ -1812,6 +1877,10 @@ class GitArchiver:
         components = []
         if bundle_filename:
             components.append("Git bundle")
+        if include_wiki and any(
+            f.endswith(".wiki.bundle") for f in files_to_upload.keys()
+        ):
+            components.append("Wiki git bundle")
         if info_filename:
             components.append("Repository info file")
 
@@ -1893,6 +1962,8 @@ class GitArchiver:
         bundle_only=False,
         create_repo_info=True,
         include_repo_info_in_description=True,
+        include_wiki=False,
+        repo_url=None,
     ):
         """Upload the repository to the Internet Archive"""
         # Generate timestamps
@@ -1931,6 +2002,9 @@ class GitArchiver:
             metadata, bundle_only, includes_releases, custom_metadata
         )
 
+        if include_wiki and self.repo_data.get("wiki_url"):
+            metadata["wikiurl"] = self.repo_data["wiki_url"]
+
         # Print upload information
         self._print_upload_info(
             identifier, item_name, repo_date, archive_date, archive_details, metadata
@@ -1965,6 +2039,15 @@ class GitArchiver:
                     files_to_upload[f"{archive_name_stem}.lfs-objects.tar.gz"] = str(
                         lfs_archive_path
                     )
+
+            if include_wiki and self.repo_data.get("has_wiki"):
+                wiki_bundle_path = self._archive_wiki(
+                    repo_url, repo_path, archive_name_stem
+                )
+                if wiki_bundle_path:
+                    metadata["has_wiki"] = "true"
+                    wiki_bundle_name = os.path.basename(wiki_bundle_path)
+                    files_to_upload[wiki_bundle_name] = wiki_bundle_path
             info_filename = next(
                 (k for k in files_to_upload.keys() if k.endswith("_info.json")), None
             )
@@ -1984,6 +2067,7 @@ class GitArchiver:
                 includes_all_branches,
                 includes_releases,
                 username,
+                include_wiki,
             )
 
             # Get credentials and upload
@@ -2083,6 +2167,7 @@ class GitArchiver:
         bundle_only=False,
         create_repo_info=True,
         include_repo_info_in_description=False,
+        include_wiki=False,
     ):
         """Main execution flow."""
         self.verbose = verbose
@@ -2127,6 +2212,8 @@ class GitArchiver:
             bundle_only=bundle_only,
             create_repo_info=create_repo_info,
             include_repo_info_in_description=include_repo_info_in_description,
+            include_wiki=include_wiki,
+            repo_url=repo_url,
         )
 
         # Cleanup
@@ -2184,6 +2271,11 @@ Examples:
         "--include-repo-info-in-description",
         action="store_true",
         help="Include repository information section in the IA description",
+    )
+    parser.add_argument(
+        "--include-wiki",
+        action="store_true",
+        help="Clone and archive the repository wiki (if it exists)",
     )
     parser.add_argument(
         "--releases", action="store_true", help="Download releases from the repository"
@@ -2260,6 +2352,7 @@ Examples:
             bundle_only=args.bundle_only,
             create_repo_info=not args.no_repo_info,
             include_repo_info_in_description=args.include_repo_info_in_description,
+            include_wiki=args.include_wiki,
         )
         if identifier:
             print("\n" + "=" * 60)
