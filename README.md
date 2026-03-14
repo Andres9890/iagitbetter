@@ -31,6 +31,7 @@ iagitbetter is a python tool for preserving any git repository to the [Internet 
 - API token authentication for repositories
 - Includes stars, forks, programming language, license, topics, and more metadata
 - Creates git bundles
+- Archives repository wikis into git bundles
 - Archives Git Large File Storage (LFS) objects automatically
 - Uses the first commit date as the repo creation date
 - Pass additional metadata using `--metadata=<key:value>`
@@ -67,6 +68,7 @@ iagitbetter <url> [options]
 
 - `--metadata=<key:value>` – custom metadata to add to the IA item
 - `--all-files` – upload all repository files in addition to git bundle (by default, only the bundle is uploaded)
+- `--include-wiki` – clone and archive the repository wiki (if it exists)
 - `--quiet` / `-q` – suppress verbose output
 - `--version` – show version information
 - `--no-update-check` – skip checking for updates
@@ -301,14 +303,18 @@ iagitbetter --metadata="collection:software,topic:python" https://github.com/use
 # All files mode (upload repository files and bundle)
 iagitbetter --all-files https://github.com/user/repo
 
+# Archive repository with wiki
+iagitbetter --include-wiki https://github.com/user/repo
+
 # Quiet mode with all features
-iagitbetter --quiet --all-branches --releases --all-releases https://github.com/user/repo
+iagitbetter --quiet --all-branches --releases --all-releases --include-wiki https://github.com/user/repo
 
 # Self-hosted with all features
 iagitbetter --git-provider-type gitlab \
   --api-token glpat-xxxxxxxxxxxxx \
   --all-branches \
   --releases --all-releases \
+  --include-wiki \
   https://gitlab.example.com/user/repo
 ```
 
@@ -466,20 +472,21 @@ If you use the `--all-files` flag, all repository files will be uploaded in addi
    - Original repository URL and git provider information
    - First commit date as the creation date
    - API-fetched metadata (stars, forks, language, etc)
-   - Branch and releases information
+   - Branch, releases, and wiki information
 2. All repository files are uploaded preserving directory structure
 3. Provider directories like `.github/`, `.gitlab/`, `.gitea/` are preserved
 4. Branches are included (if archived with `--all-branches`)
 5. Release files are included (if requested)
 6. The git bundle is included
-7. User/organization avatar is included
-8. README.md is converted to HTML for the item description
+7. Wiki bundle is included (if archived with `--include-wiki`)
+8. User/organization avatar is included
+9. README.md is converted to HTML for the item description
 
 ### Archive Format
 - Identifier: `{owner}-{repo}-{timestamp}`
 - Title: `{owner} - {repo}`
 - Date: First commit date
-- Files: Complete repository structure, branches (if requested), releases (if requested), and git bundle
+- Files: Complete repository structure, branches (if requested), releases (if requested), wiki bundle (if requested), and git bundle
 
 ## Repository Restoration
 
