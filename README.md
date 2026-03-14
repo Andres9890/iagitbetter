@@ -31,6 +31,7 @@ iagitbetter is a python tool for preserving any git repository to the [Internet 
 - API token authentication for repositories
 - Includes stars, forks, programming language, license, topics, and more metadata
 - Creates git bundles
+- Archives Git Large File Storage (LFS) objects automatically
 - Uses the first commit date as the repo creation date
 - Pass additional metadata using `--metadata=<key:value>`
 
@@ -440,7 +441,8 @@ If you use the `--all-files` flag, all repository files will be uploaded in addi
 2. If `--all-branches` is specified, all remote branches are fetched and separate directories are created for each non-default branch
 3. The first commit date is extracted for the creation date
 4. A git bundle is created with all branches and tags
-5. User/organization avatar is downloaded if available
+5. If Git LFS is detected, LFS objects are automatically fetched and archived into a tarball
+6. User/organization avatar is downloaded if available
 
 ### Branch Processing (when `--all-branches` is used)
 1. All remote branches are fetched from the repository

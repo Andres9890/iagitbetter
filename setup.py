@@ -13,7 +13,9 @@ def get_version():
     init_path = os.path.join(os.path.dirname(__file__), "iagitbetter", "__init__.py")
     with open(init_path, "r") as f:
         content = f.read()
-    version_match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content, re.MULTILINE)
+    version_match = re.search(
+        r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content, re.MULTILINE
+    )
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string")
