@@ -240,6 +240,48 @@ iagitbetter --releases https://bitbucket.org/user/repository
 
 ---
 
+### GitFlic (gitflic.ru)
+**Support Level:** 🟢 Full Support
+
+GitFlic and self-hosted GitFlic instances are fully supported
+
+#### Features
+- ✅ Metadata fetching
+- ✅ Release downloading
+- ❌ Avatar downloading
+- ✅ Topics
+- ✅ Primary language detection
+- ✅ Visibility and fork status
+
+#### Usage
+```bash
+# Public repository
+iagitbetter https://gitflic.ru/user/repository
+
+# With releases
+iagitbetter --releases https://gitflic.ru/user/repository
+
+# Private repository (requires token)
+iagitbetter --api-token example https://gitflic.ru/user/private-repo
+
+# Self-hosted
+iagitbetter --git-provider-type gitflic \
+  --api-url https://api.gitflic.example.com \
+  https://gitflic.example.com/user/repository
+```
+
+#### API Token
+1. Go to Profile Settings → API Tokens
+2. Generate a new token
+3. Use token with `--api-token`
+
+#### API Endpoints
+- Base: `https://api.gitflic.ru`
+- Repository: `https://api.gitflic.ru/project/{owner}/{repo}`
+- Releases: `https://api.gitflic.ru/project/{owner}/{repo}/release`
+
+---
+
 ## Self-Hosted Instances
 
 ### Self-Hosted GitLab
@@ -434,6 +476,7 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 | Gitea | ✅ | ✅ | ✅ | ✅ | Full support |
 | Forgejo | ✅ | ✅ | ✅ | ✅ | Use Gitea mode |
 | Bitbucket | ✅ | ⚠️ | ✅ | N/A | Limited releases |
+| GitFlic | ✅ | ✅ | ❌ | ✅ | Full support |
 
 ### Experimental / New Providers
 
@@ -452,22 +495,22 @@ iagitbetter --all-branches https://git.example.com/user/repository.git
 
 ### Metadata Fields
 
-| Field | GitHub | GitLab | Bitbucket | Gitea/Forgejo |
-|-------|--------|--------|-----------|---------------|
-| Description | ✅ | ✅ | ✅ | ✅ |
-| Stars | ✅ | ✅ | ❌ | ✅ |
-| Forks | ✅ | ✅ | ❌ | ✅ |
-| Watchers | ✅ | ❌ | ❌ | ✅ |
-| Language | ✅ | ❌ | ✅ | ✅ |
-| License | ✅ | ❌ | ❌ | ❌ |
-| Topics | ✅ | ✅ | ❌ | ✅ |
-| Homepage | ✅ | ❌ | ✅ | ✅ |
-| Created At | ✅ | ✅ | ✅ | ✅ |
-| Updated At | ✅ | ✅ | ✅ | ✅ |
-| Default Branch | ✅ | ✅ | ✅ | ✅ |
-| Is Private | ✅ | ✅ | ✅ | ✅ |
-| Is Fork | ✅ | ✅ | ✅ | ✅ |
-| Is Archived | ✅ | ✅ | ❌ | ✅ |
+| Field | GitHub | GitLab | Bitbucket | Gitea/Forgejo | GitFlic |
+|-------|--------|--------|-----------|---------------|---------|
+| Description | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Stars | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Forks | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Watchers | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Language | ✅ | ❌ | ✅ | ✅ | ✅ |
+| License | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Topics | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Homepage | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Created At | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Updated At | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Default Branch | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Is Private | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Is Fork | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Is Archived | ✅ | ✅ | ❌ | ✅ | ❌ |
 
 ---
 
@@ -677,6 +720,7 @@ Contributions are welcome
 - [Gitea API Documentation](https://docs.gitea.io/en-us/api-usage/)
 - [Forgejo API Documentation](https://forgejo.org/docs/latest/user/api-usage/)
 - [Bitbucket API Documentation](https://developer.atlassian.com/bitbucket/api/2/reference/)
+- [GitFlic API Documentation](https://docs.gitflic.ru/latest/en/api/intro/)
 
 ### Experimental / New Providers
 - [Gitee API Documentation](https://gitee.com/api/v5/swagger)

@@ -92,6 +92,16 @@ class GitArchiverTests(unittest.TestCase):
         self.assertEqual(result["git_site"], "github")
         self.assertEqual(result["full_name"], "testuser/testrepo")
 
+    def test_extract_repo_info_gitflic(self):
+        """Test extracting repository info from GitFlic URL"""
+        repo_url = "https://gitflic.ru/testuser/testrepo"
+        result = self.archiver.extract_repo_info(repo_url)
+
+        self.assertEqual(result["owner"], "testuser")
+        self.assertEqual(result["repo_name"], "testrepo")
+        self.assertEqual(result["git_site"], "gitflic")
+        self.assertEqual(result["full_name"], "testuser/testrepo")
+
     def test_extract_repo_info_gitlab(self):
         """Test extracting repository info from GitLab URL"""
         repo_url = "https://gitlab.com/testgroup/testproject"
@@ -796,6 +806,10 @@ class ProfileArchiverTests(unittest.TestCase):
         self.assertFalse(
             self.archiver.is_profile_url("https://bitbucket.org/team/repo")
         )
+
+        # GitFlic
+        self.assertTrue(self.archiver.is_profile_url("https://gitflic.ru/user"))
+        self.assertFalse(self.archiver.is_profile_url("https://gitflic.ru/user/repo"))
 
         # Self-hosted
         self.assertTrue(self.archiver.is_profile_url("https://git.example.com/user"))
