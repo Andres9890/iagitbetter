@@ -16,6 +16,7 @@ from .gitea import GiteaProvider
 from .gitee import GiteeProvider
 from .github import GistProvider, GitHubProvider
 from .gitlab import GitLabProvider
+from .gitflic import GitFlicProvider
 from .gogs import GogsProvider
 from .launchpad import LaunchpadProvider
 from .sourceforge import SourceForgeProvider
@@ -28,6 +29,7 @@ PROVIDERS: list[Type[BaseProvider]] = [
     BitbucketProvider,
     GiteaProvider,
     GiteeProvider,
+    GitFlicProvider,
     GogsProvider,
     SourceForgeProvider,
     GerritProvider,
@@ -152,6 +154,7 @@ __all__ = [
     "BitbucketProvider",
     "GiteaProvider",
     "GiteeProvider",
+    "GitFlicProvider",
     "GogsProvider",
     "SourceForgeProvider",
     "GerritProvider",
