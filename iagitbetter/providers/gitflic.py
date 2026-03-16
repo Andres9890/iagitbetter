@@ -25,7 +25,7 @@ class GitFlicProvider(BaseProvider):
     def build_api_url(self, owner: str, repo_name: str, domain: str) -> str:
         """Build GitFlic API URL."""
         if self.api_url:
-            base_url = self.api_url.rstrip('/')
+            base_url = self.api_url.rstrip("/")
         elif domain:
             base_url = f"https://{domain.rstrip('/')}"
         else:
@@ -75,7 +75,7 @@ class GitFlicProvider(BaseProvider):
         headers = self.get_auth_headers()
 
         if self.api_url:
-            base_url = self.api_url.rstrip('/')
+            base_url = self.api_url.rstrip("/")
         elif domain:
             base_url = f"https://{domain.rstrip('/')}"
         else:
@@ -135,7 +135,7 @@ class GitFlicProvider(BaseProvider):
         headers = self.get_auth_headers()
 
         if self.api_url:
-            base_url = self.api_url.rstrip('/')
+            base_url = self.api_url.rstrip("/")
         elif domain:
             base_url = f"https://{domain.rstrip('/')}"
         else:
@@ -146,7 +146,9 @@ class GitFlicProvider(BaseProvider):
             try:
                 response = requests.get(url, headers=headers, timeout=10)
             except requests.exceptions.RequestException as e:
-                self._log(f"   Network error fetching GitFlic releases for {owner}/{repo_name}: {e}")
+                self._log(
+                    f"   Network error fetching GitFlic releases for {owner}/{repo_name}: {e}"
+                )
                 break
 
             if response.status_code != 200:
