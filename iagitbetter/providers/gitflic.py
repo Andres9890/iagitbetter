@@ -128,6 +128,14 @@ class GitFlicProvider(BaseProvider):
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code != 200:
+                error_msg = response.text
+                try:
+                    error_msg = response.json()
+                except Exception:
+                    pass
+                self._log(
+                    f"   Error fetching GitFlic releases for {owner}/{repo_name} (status {response.status_code}): {error_msg}"
+                )
                 break
 
             data = response.json()
