@@ -17,18 +17,19 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@main
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@main
       with:
         python-version: '3.x'
 
-    - name: Cache pip
-      uses: actions/cache@v4.2.3
+    - name: Cache pip and IA config
+      uses: actions/cache@main
       with:
         path: |
           ~/.cache/pip
+          ~/.config/internetarchive
         key: ${{ runner.os }}-archive-cache-${{ hashFiles('.github/workflows/iagitbetter.yml') }}
         restore-keys: |
           ${{ runner.os }}-archive-cache-
@@ -43,8 +44,13 @@ jobs:
         IA_EMAIL: ${{ secrets.IA_EMAIL }}
         IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
       run: |
-        printf "%s\n%s\n" "$IA_EMAIL" "$IA_PASSWORD" | ia configure
+        # Check if the internetarchive config directory was restored from cache
+        if [ ! -d ~/.config/internetarchive ]; then
+          printf "%s\n%s\n" "$IA_EMAIL" "$IA_PASSWORD" | ia configure
+        else
+          echo "IA config found in cache, skipping config"
+        fi
 
     - name: Run iagitbetter
       run: |
-        iagitbetter ${{ github.event.inputs.args }} "${{ github.event.inputs.url }}"
+        iagitbetter ${{ github.event.inputs.args }} ${{ github.event.inputs.url }}
