@@ -269,8 +269,23 @@ class GitArchiver:
                 path_parts[0].replace(".git", "") if path_parts else "repository"
             )
 
+        if git_site == "gitlab":
+            repo_path_parts = (
+                path_parts[: path_parts.index("-")] if "-" in path_parts else path_parts
+            )
+        elif len(path_parts) >= 2:
+            repo_path_parts = path_parts[:2]
+        else:
+            repo_path_parts = path_parts
+        if parsed.scheme and parsed.netloc:
+            clean_url = (
+                f"{parsed.scheme}://{parsed.netloc}/{'/'.join(repo_path_parts)}"
+            )
+        else:
+            clean_url = repo_url
+
         # Remove .git suffix from URL if present
-        clean_url = repo_url.rstrip("/")
+        clean_url = clean_url.rstrip("/")
         if clean_url.endswith(".git"):
             clean_url = clean_url[:-4]
 
@@ -1009,7 +1024,9 @@ class GitArchiver:
 
     def clone_repository(self, repo_url, all_branches=False, specific_branch=None):
         """Clone the git repository to a temporary directory."""
-        clone_url = self.repo_data.get("clone_url") or repo_url
+        clone_url = (
+            self.repo_data.get("clone_url") or self.repo_data.get("url") or repo_url
+        )
 
         if self.verbose:
             if all_branches:
@@ -1738,6 +1755,30 @@ class GitArchiver:
 
         return metadata
 
+    def _find_license_file(self, repo_path):
+        try:
+            entries = os.listdir(repo_path)
+        except OSError:
+            return None
+
+        candidates = []
+        for name in entries:
+            stem = os.path.splitext(name)[0].lower()
+            if stem not in ("license", "licence", "copying", "unlicense"):
+                continue
+            path = os.path.join(repo_path, name)
+            if os.path.isfile(path) and os.path.getsize(path) > 0:
+                candidates.append(name)
+
+        if not candidates:
+            return None
+
+        def sort_key(name):
+            stem, ext = os.path.splitext(name.lower())
+            return (stem not in ("license", "licence"), ext != "", name)
+
+        return sorted(candidates, key=sort_key)[0]
+
     def _add_branch_metadata(self, metadata, includes_all_branches, specific_branch):
         """Add branch-related metadata"""
         if includes_all_branches:
@@ -2008,6 +2049,12 @@ class GitArchiver:
         metadata = self._build_base_metadata(
             item_name, description, repo_date, subject_tags, identifier
         )
+        if "licenseurl" not in metadata and not bundle_only:
+            license_filename = self._find_license_file(repo_path)
+            if license_filename:
+                metadata["licenseurl"] = (
+                    f"https://archive.org/download/{identifier}/{license_filename}"
+                )
         self._add_branch_metadata(metadata, includes_all_branches, specific_branch)
         self._add_optional_metadata(
             metadata, bundle_only, includes_releases, custom_metadata
