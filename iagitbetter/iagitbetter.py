@@ -278,9 +278,7 @@ class GitArchiver:
         else:
             repo_path_parts = path_parts
         if parsed.scheme and parsed.netloc:
-            clean_url = (
-                f"{parsed.scheme}://{parsed.netloc}/{'/'.join(repo_path_parts)}"
-            )
+            clean_url = f"{parsed.scheme}://{parsed.netloc}/{'/'.join(repo_path_parts)}"
         else:
             clean_url = repo_url
 
