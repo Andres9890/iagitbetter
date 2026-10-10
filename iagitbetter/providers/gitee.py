@@ -42,9 +42,9 @@ class GiteeProvider(BaseProvider):
             "open_issues": api_data.get("open_issues_count", 0),
             "homepage": api_data.get("homepage", ""),
             "license": (
-                api_data.get("license", {}).get("name", "")
-                if api_data.get("license")
-                else ""
+                api_data["license"].get("name", "")
+                if isinstance(api_data.get("license"), dict)
+                else api_data.get("license") or ""
             ),
             "default_branch": api_data.get("default_branch", "master"),
             "has_wiki": api_data.get("has_wiki", False),

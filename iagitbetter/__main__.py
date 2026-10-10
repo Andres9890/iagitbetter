@@ -29,9 +29,7 @@ from . import __version_v__
 __version__ = __version_v__
 
 import argparse
-import json
 import sys
-import urllib.request
 from datetime import datetime
 
 # Import from the iagitbetter module
@@ -39,6 +37,9 @@ try:
     from . import iagitbetter
 except ImportError:
     import iagitbetter
+
+check_for_updates = iagitbetter.check_for_updates
+get_latest_pypi_version = iagitbetter.get_latest_pypi_version
 
 PROGRAM_DESCRIPTION = """A tool for archiving any git repository to the Internet Archive
                        An improved version of iagitup with support for all git providers
@@ -48,53 +49,6 @@ PROGRAM_DESCRIPTION = """A tool for archiving any git repository to the Internet
                        Supports archiving individual repositories or entire user/org profiles
 
                        Based on https://github.com/gdamdam/iagitup"""
-
-
-def get_latest_pypi_version(package_name="iagitbetter"):
-    """
-    Request PyPI for the latest version
-    Returns the version string, or None if it cannot be determined
-    """
-    try:
-        url = f"https://pypi.org/pypi/{package_name}/json"
-        with urllib.request.urlopen(url, timeout=5) as response:
-            data = json.load(response)
-            return data["info"]["version"]
-    except Exception:
-        return None
-
-
-def check_for_updates(current_version, verbose=True):
-    """
-    Check if a newer version is available on PyPI
-    """
-    if not verbose:
-        return  # Skip version check in quiet mode
-
-    try:
-        # Remove 'v' prefix if present for comparison
-        current_clean = current_version.lstrip("v")
-        latest_version = get_latest_pypi_version("iagitbetter")
-
-        if latest_version and latest_version != current_clean:
-            # Simple version comparison (works for semantic versioning)
-            current_parts = [int(x) for x in current_clean.split(".")]
-            latest_parts = [int(x) for x in latest_version.split(".")]
-
-            # Pad shorter version with zeros
-            max_len = max(len(current_parts), len(latest_parts))
-            current_parts.extend([0] * (max_len - len(current_parts)))
-            latest_parts.extend([0] * (max_len - len(latest_parts)))
-
-            if latest_parts > current_parts:
-                print(
-                    f"Update available: {latest_version} (Upgrade with pip install --upgrade iagitbetter)"
-                )
-                print("   Run: pip install --upgrade iagitbetter")
-                print()
-    except Exception:
-        # Silently ignore any errors in version checking
-        pass
 
 
 # Configure argparser
@@ -158,6 +112,7 @@ Key improvements over iagitup:
 
     parser.add_argument(
         "giturl",
+        nargs="?",
         type=str,
         help="Git repository URL or user/organization profile URL to archive",
     )
@@ -209,7 +164,7 @@ Key improvements over iagitup:
         "--releases",
         nargs="?",
         const=True,
-        type=lambda x: True if x is None else int(x),
+        type=lambda x: int(x) if x.isdigit() else x,
         default=False,
         metavar="N",
         help="Download releases from the repository (GitHub, GitLab, etc). Optionally specify number of releases to download (e.g., --releases 5)",
@@ -308,7 +263,17 @@ def parse_args(argv=None):
     """
 
     parser = build_argument_parser()
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    if isinstance(args.releases, str):
+        if args.giturl is not None:
+            parser.error(f"argument --releases: invalid number: '{args.releases}'")
+        args.giturl, args.releases = args.releases, True
+
+    if args.giturl is None:
+        parser.error("the following arguments are required: giturl")
+
+    return args
 
 
 def _build_archive_components_list(args):
@@ -368,6 +333,9 @@ def archive_single_repository(archiver, url, args, verbose, num_releases=None):
             url, all_branches=args.all_branches, specific_branch=args.branch
         )
 
+        if archiver.repo_data.get("git_site") == "gist":
+            archiver.save_gist_comments(repo_path)
+
         # Download releases if requested
         if args.releases:
             if verbose:
@@ -423,6 +391,8 @@ def _determine_git_provider(domain, git_provider_type):
     """Determine git provider from domain or explicit type"""
     if git_provider_type:
         return git_provider_type
+    elif domain == "gist.github.com":
+        return "gist"
     elif "github" in domain:
         return "github"
     elif "gitlab" in domain:
@@ -471,6 +441,22 @@ def _apply_repository_filters(repositories, args, verbose):
             print(f"   Limiting to {args.max_repos} repositories")
 
     return filtered_repos, original_count
+
+
+def _mark_gist_forks(archiver, gists, verbose):
+    provider = archiver._get_provider()
+    if verbose:
+        print(f"   Checking which of {len(gists)} gists are forks...")
+
+    for checked, gist in enumerate(gists):
+        is_fork = provider.is_fork(gist["name"])
+        if is_fork is None:
+            print(
+                f"   Warning: Could not check {len(gists) - checked} gist(s) for forks, "
+                "they will not be skipped (use --api-token to avoid rate limits)"
+            )
+            break
+        gist["fork"] = is_fork
 
 
 def _print_profile_summary(
@@ -542,6 +528,9 @@ def archive_profile(archiver, url, args, verbose, num_releases=None):
     if not repositories:
         print("No repositories found for this profile")
         return []
+
+    if args.skip_forks and git_site == "gist":
+        _mark_gist_forks(archiver, repositories, verbose)
 
     # Apply filters
     filtered_repos, original_count = _apply_repository_filters(
@@ -738,7 +727,11 @@ def main(argv=None):
         # Determine if this is a profile URL or repository URL
         if archiver.is_profile_url(URL):
             # Profile archiving mode
-            _ = archive_profile(archiver, URL, args, verbose, num_releases=num_releases)
+            results = archive_profile(
+                archiver, URL, args, verbose, num_releases=num_releases
+            )
+            if not results or not all(r["success"] for r in results):
+                sys.exit(1)
         else:
             # Single repository archiving mode
             identifier, metadata = archive_single_repository(

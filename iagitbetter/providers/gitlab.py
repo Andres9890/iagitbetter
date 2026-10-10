@@ -6,6 +6,7 @@ Handles gitlab.com and self-hosted GitLab instances.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -93,16 +94,22 @@ class GitLabProvider(BaseProvider):
         # Get user info to find user ID
         user_url = f"{base_url}/users?username={username}"
         response = requests.get(user_url, headers=headers, timeout=10)
+        users = response.json() if response.status_code == 200 else []
 
-        if response.status_code != 200 or not response.json():
-            self._log(f"   Could not find GitLab user: {username}")
-            return []
-
-        user_id = response.json()[0]["id"]
+        if users:
+            projects_url = f"{base_url}/users/{users[0]['id']}/projects"
+            extra_params = "&order_by=updated_at"
+        else:
+            group_id = self._find_group_id(base_url, username, headers)
+            if group_id is None:
+                self._log(f"   Could not find GitLab user or group: {username}")
+                return []
+            projects_url = f"{base_url}/groups/{group_id}/projects"
+            extra_params = "&order_by=updated_at&include_subgroups=true"
 
         # Fetch user's projects
         while True:
-            url = f"{base_url}/users/{user_id}/projects?per_page={per_page}&page={page}&order_by=updated_at"
+            url = f"{projects_url}?per_page={per_page}&page={page}{extra_params}"
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code == 200:
@@ -131,6 +138,21 @@ class GitLabProvider(BaseProvider):
                 break
 
         return repos
+
+    def _find_group_id(
+        self, base_url: str, group_path: str, headers: dict[str, str]
+    ) -> int | None:
+        try:
+            response = requests.get(
+                f"{base_url}/groups/{quote(group_path, safe='')}",
+                headers=headers,
+                timeout=10,
+            )
+        except requests.exceptions.RequestException:
+            return None
+        if response.status_code != 200:
+            return None
+        return response.json().get("id")
 
     def fetch_releases(
         self,

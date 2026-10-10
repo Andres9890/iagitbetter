@@ -10,7 +10,7 @@ from . import __version__
 __author__ = "Andres99"
 __license__ = "GPL-3.0"
 
-import argparse
+import html
 import json
 import os
 import re
@@ -38,6 +38,17 @@ from .providers import (
     get_provider_by_name,
     get_provider_for_domain,
 )
+
+OWNER_REPO_SITES = {
+    "github",
+    "gist",
+    "gitea",
+    "codeberg",
+    "gogs",
+    "gitee",
+    "gitflic",
+    "bitbucket",
+}
 
 
 def _is_lfs_installed():
@@ -145,7 +156,7 @@ def check_for_updates(current_version, verbose=True):
 
             if latest_parts > current_parts:
                 print(
-                    f"Update available: {latest_version} (current is v{current_version})"
+                    f"Update available: {latest_version} (current is v{current_clean})"
                 )
                 print("   upgrade with: pip install --upgrade iagitbetter")
                 print()
@@ -173,6 +184,7 @@ class GitArchiver:
         self.api_token = api_token  # API token for authentication
         self.api_username = api_username  # <-- store username for Bitbucket Basic auth
         self._provider = None  # Provider instance (lazy loaded)
+        self._auth_clone_url = None
 
     def _get_provider(self, domain=None):
         """Get or create the provider instance for the current repository."""
@@ -202,6 +214,13 @@ class GitArchiver:
         """Determine if URL is a profile/organization page or a specific repository"""
         parsed = urlparse(url)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
+
+        if (
+            (parsed.hostname or "") == "gist.github.com"
+            and len(path_parts) == 1
+            and re.fullmatch(r"[0-9a-f]{20,32}|\d+", path_parts[0].removesuffix(".git"))
+        ):
+            return False
 
         # Profile URLs typically have only 1 path component (username/org)
         # Repository URLs have 2 or more (username/repo, or username/group/repo)
@@ -233,7 +252,10 @@ class GitArchiver:
         """Extract repository information from any git URL"""
         # Parse the URL
         parsed = urlparse(repo_url)
-        domain = parsed.netloc.lower()
+        host = parsed.hostname or ""
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        domain = host
 
         # Remove www. prefix if present
         if domain.startswith("www."):
@@ -269,23 +291,9 @@ class GitArchiver:
                 path_parts[0].replace(".git", "") if path_parts else "repository"
             )
 
-        if git_site == "gitlab":
-            repo_path_parts = (
-                path_parts[: path_parts.index("-")] if "-" in path_parts else path_parts
-            )
-        elif len(path_parts) >= 2:
-            repo_path_parts = path_parts[:2]
-        else:
-            repo_path_parts = path_parts
-        if parsed.scheme and parsed.netloc:
-            clean_url = f"{parsed.scheme}://{parsed.netloc}/{'/'.join(repo_path_parts)}"
-        else:
-            clean_url = repo_url
-
-        # Remove .git suffix from URL if present
-        clean_url = clean_url.rstrip("/")
-        if clean_url.endswith(".git"):
-            clean_url = clean_url[:-4]
+        clean_url, self._auth_clone_url = self._clean_repo_url(
+            repo_url, parsed, host, git_site, path_parts
+        )
 
         self.repo_data = {
             "url": clean_url,
@@ -305,6 +313,30 @@ class GitArchiver:
             self.repo_data["wiki_url"] = f"{self.repo_data['url']}.wiki.git"
 
         return self.repo_data
+
+    def _clean_repo_url(self, repo_url, parsed, host, git_site, path_parts):
+        if not (parsed.scheme and host):
+            clean_url = repo_url.rstrip("/").removesuffix(".git")
+            return clean_url, None
+
+        if git_site == "gitlab":
+            repo_path_parts = (
+                path_parts[: path_parts.index("-")] if "-" in path_parts else path_parts
+            )
+        elif git_site in OWNER_REPO_SITES and len(path_parts) >= 2:
+            repo_path_parts = path_parts[:2]
+        else:
+            repo_path_parts = path_parts
+
+        repo_path = "/".join(repo_path_parts).rstrip("/").removesuffix(".git")
+        clean_url = f"{parsed.scheme}://{host}/{repo_path}".rstrip("/")
+
+        auth_clone_url = None
+        if parsed.password:
+            userinfo = parsed.netloc.rsplit("@", 1)[0]
+            auth_clone_url = f"{parsed.scheme}://{userinfo}@{host}/{repo_path}"
+
+        return clean_url, auth_clone_url
 
     def _build_commit_url(self, commit_sha):
         """Build the URL to view a commit on the git provider's web interface"""
@@ -543,18 +575,19 @@ class GitArchiver:
             }
         )
 
-    def get_license_url(self, license_name):
+    def get_license_url(self, license_name, spdx_id=None):
         """
-        Get the standard URL for a given license name.
+        Get the standard URL for a given license name or SPDX identifier.
         Returns None if the license is not recognized or doesn't have a standard URL.
 
         This mapping includes Creative Commons licenses and common open source licenses.
         """
-        if not license_name:
+        if not license_name and not spdx_id:
             return None
 
         # Normalize license name for comparison (lowercase, remove extra spaces)
-        license_lower = license_name.lower().strip()
+        license_lower = (license_name or "").lower().strip()
+        spdx_lower = (spdx_id or "").lower().strip()
 
         # Creative Commons license mappings
         # These map to the deed URLs which are the canonical license URLs
@@ -564,6 +597,9 @@ class GitArchiver:
             "cc0 1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
             "cc0 1.0 universal": "https://creativecommons.org/publicdomain/zero/1.0/",
             "cc0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "creative commons zero v1.0 universal": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "creative commons attribution 4.0 international": "https://creativecommons.org/licenses/by/4.0/",
+            "creative commons attribution share alike 4.0 international": "https://creativecommons.org/licenses/by-sa/4.0/",
             # CC BY 4.0
             "cc by 4.0": "https://creativecommons.org/licenses/by/4.0/",
             "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
@@ -665,15 +701,43 @@ class GitArchiver:
             "ofl-1.1": "https://opensource.org/license/ofl-1-1",
             "ncsa": "https://opensource.org/license/uoi-ncsa-php",
             "zlib": "https://opensource.org/license/zlib",
+            "zlib license": "https://opensource.org/license/zlib",
+            "academic free license v3.0": "https://opensource.org/license/afl-3-0",
+            "artistic license 2.0": "https://opensource.org/license/artistic-2-0",
+            "boost software license 1.0": "https://opensource.org/license/bsl-1-0",
+            "bsd 3-clause clear license": "https://opensource.org/license/bsd-3-clause-clear",
+            'bsd 4-clause "original" or "old" license': "https://spdx.org/licenses/BSD-4-Clause.html",
+            "bsd zero clause license": "https://opensource.org/license/0bsd",
+            "do what the f*ck you want to public license": "https://www.wtfpl.net/",
+            "educational community license v2.0": "https://opensource.org/license/ecl-2-0",
+            "eclipse public license 1.0": "https://opensource.org/license/epl-1-0",
+            "eclipse public license 2.0": "https://opensource.org/license/epl-2-0",
+            "european union public license 1.1": "https://opensource.org/license/eupl-1-1",
+            "eupl-1.2": "https://opensource.org/license/eupl-1-2",
+            "european union public license 1.2": "https://opensource.org/license/eupl-1-2",
+            "latex project public license v1.3c": "https://opensource.org/license/lppl",
+            "microsoft public license": "https://opensource.org/license/ms-pl-html",
+            "ms-rl": "https://opensource.org/license/ms-rl-html",
+            "microsoft reciprocal license": "https://opensource.org/license/ms-rl-html",
+            "open software license 3.0": "https://opensource.org/license/osl-3-0-php",
+            "postgresql license": "https://opensource.org/license/postgresql",
+            "sil open font license 1.1": "https://opensource.org/license/ofl-1-1",
+            "university of illinois/ncsa open source license": "https://opensource.org/license/uoi-ncsa-php",
+            "mit-0": "https://opensource.org/license/mit-0",
+            "mit no attribution": "https://opensource.org/license/mit-0",
+            "upl-1.0": "https://opensource.org/license/upl",
+            "universal permissive license v1.0": "https://opensource.org/license/upl",
+            "gfdl-1.3": "https://www.gnu.org/licenses/fdl-1.3.html",
+            "gnu free documentation license v1.3": "https://www.gnu.org/licenses/fdl-1.3.html",
+            "mulanpsl-2.0": "https://license.coscl.org.cn/MulanPSL2",
+            "mulan permissive software license, version 2": "https://license.coscl.org.cn/MulanPSL2",
         }
 
-        # Check CC licenses first
-        if license_lower in cc_licenses:
-            return cc_licenses[license_lower]
-
-        # Check open source licenses
-        if license_lower in open_source_licenses:
-            return open_source_licenses[license_lower]
+        for key in (spdx_lower, license_lower):
+            if key in cc_licenses:
+                return cc_licenses[key]
+            if key in open_source_licenses:
+                return open_source_licenses[key]
 
         # No matching license URL found
         return None
@@ -930,8 +994,8 @@ class GitArchiver:
         downloaded_count = 0
 
         for release in releases_to_download:
-            tag_name = release.get("tag_name", "unknown")
-            release_name = release.get("name", tag_name)
+            tag_name = self._safe_filename(release.get("tag_name"), "unknown")
+            release_name = release.get("name") or release.get("tag_name") or tag_name
 
             if self.verbose:
                 print(f"   Downloading release: {release_name} ({tag_name})")
@@ -942,7 +1006,7 @@ class GitArchiver:
 
             # Create release info file
             release_info = {
-                "tag_name": tag_name,
+                "tag_name": release.get("tag_name") or tag_name,
                 "name": release_name,
                 "published_at": release.get("published_at", release.get("released_at")),
                 "description": release.get("body", release.get("description", "")),
@@ -978,7 +1042,7 @@ class GitArchiver:
 
             # Download release assets
             for asset in release.get("assets", []):
-                asset_name = asset.get("name", "unknown_asset")
+                asset_name = self._safe_filename(asset.get("name"), "unknown_asset")
                 download_url = asset.get("download_url")
 
                 if download_url:
@@ -1010,6 +1074,12 @@ class GitArchiver:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
+    def _safe_filename(self, name, default):
+        sanitized = self._sanitize_branch_name(str(name)) if name else ""
+        if sanitized in ("", ".", ".."):
+            return default
+        return sanitized
+
     def _sanitize_branch_name(self, branch_name):
         """Sanitize branch name for use as directory name"""
         # Remove forward slashes and other problematic characters
@@ -1023,7 +1093,10 @@ class GitArchiver:
     def clone_repository(self, repo_url, all_branches=False, specific_branch=None):
         """Clone the git repository to a temporary directory."""
         clone_url = (
-            self.repo_data.get("clone_url") or self.repo_data.get("url") or repo_url
+            self._auth_clone_url
+            or self.repo_data.get("clone_url")
+            or self.repo_data.get("url")
+            or repo_url
         )
 
         if self.verbose:
@@ -1056,23 +1129,23 @@ class GitArchiver:
 
             # Get the first commit date and last commit date
             try:
-                # Get all commits and find the first one (oldest)
-                commits = list(repo.iter_commits(all=True))
+                commits = list(repo.iter_commits(all=True, max_count=5))
                 if commits:
-                    first_commit = commits[
-                        -1
-                    ]  # Last in the list is the first chronologically
-                    last_commit = commits[
-                        0
-                    ]  # First in the list is the last chronologically
+                    root_shas = repo.git.rev_list("--all", "--max-parents=0").split()
+                    first_commit_date = min(
+                        repo.commit(sha).committed_date for sha in root_shas
+                    )
+                    last_commit_date = max(c.committed_date for c in commits)
 
                     self.repo_data["first_commit_date"] = datetime.fromtimestamp(
-                        first_commit.committed_date
+                        first_commit_date
                     )
                     self.repo_data["last_commit_date"] = datetime.fromtimestamp(
-                        last_commit.committed_date
+                        last_commit_date
                     )
-                    self.repo_data["total_commits"] = len(commits)
+                    self.repo_data["total_commits"] = int(
+                        repo.git.rev_list("--all", "--count")
+                    )
 
                     recent_commits = []
                     for commit in commits[:5]:
@@ -1168,9 +1241,8 @@ class GitArchiver:
             # Get all remote branches
             remote_branches = []
             for remote_ref in repo.remote().refs:
-                if remote_ref.name != "origin/HEAD":
-                    branch_name = remote_ref.name.replace("origin/", "")
-                    remote_branches.append(branch_name)
+                if remote_ref.remote_head != "HEAD":
+                    remote_branches.append(remote_ref.remote_head)
 
             if not remote_branches:
                 remote_branches = [self.repo_data["default_branch"]]
@@ -1270,14 +1342,11 @@ class GitArchiver:
         bundle_path = os.path.join(repo_path, bundle_name)
 
         try:
-            # Change to repo directory
-            original_dir = os.getcwd()
-            os.chdir(repo_path)
-
             # Create bundle with all branches and tags
-            subprocess.check_call(["git", "bundle", "create", bundle_path, "--all"])
+            subprocess.check_call(
+                ["git", "bundle", "create", bundle_path, "--all"], cwd=repo_path
+            )
 
-            os.chdir(original_dir)
             if self.verbose:
                 print(f"   Bundle created: {bundle_name}")
             return bundle_path
@@ -1381,13 +1450,13 @@ class GitArchiver:
                     skipped_unreadable_files.append((relative_path, str(e)))
                     return False
 
-        except OSError as e:
-            skipped_corrupted_files.append((relative_path, f"OS error: {str(e)}"))
-            return False
         except PermissionError as e:
             skipped_unreadable_files.append(
                 (relative_path, f"Permission denied: {str(e)}")
             )
+            return False
+        except OSError as e:
+            skipped_corrupted_files.append((relative_path, f"OS error: {str(e)}"))
             return False
         except Exception as e:
             skipped_corrupted_files.append(
@@ -1601,8 +1670,7 @@ class GitArchiver:
             if os.path.exists(path):
                 try:
                     with open(path, "r", encoding="utf-8") as f:
-                        description = f.readlines()
-                        description = " ".join(description)
+                        description = html.escape(f.read())
                         # Convert to basic HTML
                         description = f"<pre>{description}</pre>"
                         return description
@@ -1613,7 +1681,10 @@ class GitArchiver:
 
     def _generate_upload_identifier(self, archive_date):
         """Generate identifier for Internet Archive upload"""
-        return f"{self.repo_data['owner']}-{self.repo_data['repo_name']}-{archive_date.strftime('%Y%m%d%H%M%S')}"
+        suffix = f"-{archive_date.strftime('%Y%m%d%H%M%S')}"
+        prefix = f"{self.repo_data['owner']}-{self.repo_data['repo_name']}"
+        prefix = re.sub(r"[^A-Za-z0-9._-]", "-", prefix)
+        return f"{prefix[: 100 - len(suffix)]}{suffix}"
 
     def _generate_item_name(self, repo_date):
         """Generate item name for Internet Archive upload"""
@@ -1747,7 +1818,9 @@ class GitArchiver:
             "totalcommits": str(self.repo_data.get("total_commits", 0)),
         }
 
-        license_url = self.get_license_url(self.repo_data.get("license", ""))
+        license_url = self.get_license_url(
+            self.repo_data.get("license", ""), self.repo_data.get("license_spdx")
+        )
         if license_url:
             metadata["licenseurl"] = license_url
 
@@ -2047,7 +2120,8 @@ class GitArchiver:
         metadata = self._build_base_metadata(
             item_name, description, repo_date, subject_tags, identifier
         )
-        if "licenseurl" not in metadata and not bundle_only:
+        license_filename = None
+        if "licenseurl" not in metadata:
             license_filename = self._find_license_file(repo_path)
             if license_filename:
                 metadata["licenseurl"] = (
@@ -2081,6 +2155,9 @@ class GitArchiver:
             files_to_upload, bundle_filename = self._prepare_base_files(
                 repo_path, create_repo_info
             )
+            if not bundle_filename:
+                print("Error: Could not create the git bundle, upload aborted")
+                return None, None
 
             # Detect and archive LFS objects if any
             archive_name_stem = (
@@ -2105,13 +2182,18 @@ class GitArchiver:
                     wiki_bundle_name = os.path.basename(wiki_bundle_path)
                     files_to_upload[wiki_bundle_name] = wiki_bundle_path
             info_filename = next(
-                (k for k in files_to_upload.keys() if k.endswith("_info.json")), None
+                (k for k in files_to_upload.keys() if k.endswith(".info.json")), None
             )
 
             # Add repository files
             self._add_repository_files(
                 repo_path, files_to_upload, bundle_only, includes_releases
             )
+
+            if license_filename and license_filename not in files_to_upload:
+                files_to_upload[license_filename] = os.path.join(
+                    repo_path, license_filename
+                )
 
             # Print upload components
             username = self.repo_data["owner"]
@@ -2276,153 +2358,3 @@ class GitArchiver:
         self.cleanup()
 
         return identifier, metadata
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="iagitbetter - Archive any git repository to the Internet Archive",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s https://github.com/user/repo
-  %(prog)s https://gitlab.com/user/repo
-  %(prog)s https://bitbucket.org/user/repo
-  %(prog)s --metadata="license:MIT,topic:python" https://github.com/user/repo
-  %(prog)s --quiet https://github.com/user/repo
-  %(prog)s --releases --all-releases https://github.com/user/repo
-  %(prog)s --all-branches https://github.com/user/repo
-  %(prog)s --branch develop https://github.com/user/repo
-  %(prog)s --bundle-only https://github.com/user/repo
-  %(prog)s --no-repo-info https://github.com/user/repo
-
-  # Self-hosted instances
-  %(prog)s --git-provider-type gitlab --api-url https://gitlab.company.com/api/v4 https://gitlab.company.com/user/repo
-  %(prog)s --git-provider-type gitea --api-token TOKEN https://git.company.com/user/repo
-        """,
-    )
-
-    parser.add_argument("repo_url", help="Git repository URL to archive")
-    parser.add_argument(
-        "--metadata", "-m", help="Custom metadata in format: key1:value1,key2:value2"
-    )
-    parser.add_argument(
-        "--quiet", "-q", action="store_true", help="Suppress verbose output"
-    )
-    parser.add_argument(
-        "--no-update-check",
-        action="store_true",
-        help="Skip checking for updates on PyPI",
-    )
-    parser.add_argument(
-        "--bundle-only",
-        action="store_true",
-        help="Only uploads the git bundle, not all files",
-    )
-    parser.add_argument(
-        "--no-repo-info",
-        action="store_true",
-        help="Skip creating the repository info JSON file",
-    )
-    parser.add_argument(
-        "--include-repo-info-in-description",
-        action="store_true",
-        help="Include repository information section in the IA description",
-    )
-    parser.add_argument(
-        "--include-wiki",
-        action="store_true",
-        help="Clone and archive the repository wiki (if it exists)",
-    )
-    parser.add_argument(
-        "--releases", action="store_true", help="Download releases from the repository"
-    )
-    parser.add_argument(
-        "--all-releases",
-        action="store_true",
-        help="Download all releases (default: latest only)",
-    )
-    parser.add_argument(
-        "--all-branches", action="store_true", help="Clone and archive all branches"
-    )
-    parser.add_argument(
-        "--branch", type=str, help="Clone and archive a specific branch"
-    )
-    parser.add_argument(
-        "--git-provider-type",
-        type=str,
-        choices=[
-            "github",
-            "gitlab",
-            "gitea",
-            "bitbucket",
-            "gitee",
-            "gogs",
-            "sourceforge",
-            "gerrit",
-            "launchpad",
-        ],
-        help="Specify the git provider type for self-hosted instances",
-    )
-    parser.add_argument(
-        "--api-url", type=str, help="Custom API URL for self-hosted instances"
-    )
-    parser.add_argument(
-        "--api-token",
-        type=str,
-        help="API token for authentication with private/self-hosted repositories",
-    )
-    parser.add_argument(
-        "--api-username",
-        type=str,
-        help="Username for Bitbucket App Passwords (used with --api-token for basic auth)",
-    )
-    parser.add_argument(
-        "--version", "-v", action="version", version=f"%(prog)s {__version__}"
-    )
-
-    args = parser.parse_args()
-
-    # Validate argument combinations
-    if args.all_branches and args.branch:
-        print("Error: Cannot specify both --all-branches and --branch")
-        sys.exit(1)
-
-    # Create archiver instance and run
-    archiver = GitArchiver(
-        verbose=not args.quiet,
-        git_provider_type=args.git_provider_type,
-        api_url=args.api_url,
-        api_token=args.api_token,
-        api_username=args.api_username,  # <-- pass through for Bitbucket basic auth
-    )
-    try:
-        identifier, metadata = archiver.run(
-            args.repo_url,
-            args.metadata,
-            verbose=not args.quiet,
-            check_updates=not args.no_update_check,
-            all_branches=args.all_branches,
-            specific_branch=args.branch,
-            releases=args.releases,
-            all_releases=args.all_releases,
-            bundle_only=args.bundle_only,
-            create_repo_info=not args.no_repo_info,
-            include_repo_info_in_description=args.include_repo_info_in_description,
-            include_wiki=args.include_wiki,
-        )
-        if identifier:
-            print("\n" + "=" * 60)
-            print("Archive complete")
-            print("=" * 60)
-    except KeyboardInterrupt:
-        print("\n\nOperation cancelled by user")
-        archiver.cleanup()
-        sys.exit(1)
-    except Exception as e:
-        print(f"\nError: {e}")
-        archiver.cleanup()
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

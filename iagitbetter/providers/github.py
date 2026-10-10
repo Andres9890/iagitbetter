@@ -3,6 +3,8 @@ GitHub provider implementation.
 Handles both github.com and GitHub Gists.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import requests
@@ -48,6 +50,11 @@ class GitHubProvider(BaseProvider):
             "topics": api_data.get("topics", []),
             "license": (
                 api_data.get("license", {}).get("name", "")
+                if api_data.get("license")
+                else ""
+            ),
+            "license_spdx": (
+                api_data.get("license", {}).get("spdx_id", "")
                 if api_data.get("license")
                 else ""
             ),
@@ -246,7 +253,7 @@ class GistProvider(BaseProvider):
             "archived": False,
             "disabled": False,
             "private": not api_data.get("public", True),
-            "fork": False,
+            "fork": api_data.get("fork_of") is not None,
             "size": sum(f.get("size", 0) for f in files.values()) if files else 0,
             "network_count": 0,
             "clone_url": api_data.get("git_pull_url", ""),
@@ -262,24 +269,91 @@ class GistProvider(BaseProvider):
             "gist_comments": api_data.get("comments", 0),
         }
 
+    def fetch_user_repos(self, username: str, domain: str) -> list[dict[str, Any]]:
+        gists = []
+        page = 1
+        per_page = 100
+        headers = self.get_auth_headers()
+        base_url = (
+            self.api_url.rstrip("/") if self.api_url else "https://api.github.com"
+        )
+
+        while True:
+            url = f"{base_url}/users/{username}/gists?per_page={per_page}&page={page}"
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                self._log(
+                    f"   Error fetching gists for {username} (status {response.status_code})"
+                )
+                break
+
+            page_gists = response.json()
+            if not page_gists:
+                break
+
+            for gist in page_gists:
+                gist_id = gist["id"]
+                owner = (gist.get("owner") or {}).get("login", username)
+                html_url = gist.get("html_url") or f"https://{domain}/{owner}/{gist_id}"
+                gists.append(
+                    {
+                        "name": gist_id,
+                        "full_name": f"{owner}/{gist_id}",
+                        "clone_url": html_url,
+                        "html_url": html_url,
+                        "description": gist.get("description") or "",
+                        "fork": False,
+                        "archived": False,
+                        "private": not gist.get("public", True),
+                    }
+                )
+
+            if len(page_gists) < per_page:
+                break
+            page += 1
+
+        return gists
+
+    def is_fork(self, gist_id: str) -> bool | None:
+        try:
+            response = requests.get(
+                self.build_api_url("", gist_id, ""),
+                headers=self.get_auth_headers(),
+                timeout=10,
+            )
+        except requests.exceptions.RequestException:
+            return None
+        if response.status_code != 200:
+            return None
+        return response.json().get("fork_of") is not None
+
     def fetch_comments(self, gist_id: str) -> list[dict[str, Any]]:
         """Fetch comments from a GitHub Gist."""
         comments = []
         headers = self.get_auth_headers()
         headers["Accept"] = "application/vnd.github.v3+json"
 
+        base_url = (
+            self.api_url.rstrip("/") if self.api_url else "https://api.github.com"
+        )
+        per_page = 100
+        page = 1
+
         try:
-            url = f"https://api.github.com/gists/{gist_id}/comments"
             self._log("   Fetching comments from gist...")
 
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                api_comments = response.json()
+            while True:
+                url = f"{base_url}/gists/{gist_id}/comments?per_page={per_page}&page={page}"
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code != 200:
+                    break
 
+                api_comments = response.json()
                 for comment in api_comments:
                     comment_data = {
                         "id": comment.get("id"),
-                        "user": comment.get("user", {}).get("login", ""),
+                        "user": (comment.get("user") or {}).get("login", ""),
                         "body": comment.get("body", ""),
                         "created_at": comment.get("created_at", ""),
                         "updated_at": comment.get("updated_at", ""),
@@ -287,6 +361,11 @@ class GistProvider(BaseProvider):
                     }
                     comments.append(comment_data)
 
+                if len(api_comments) < per_page:
+                    break
+                page += 1
+
+            if response.status_code == 200:
                 if len(comments) > 0:
                     self._log(f"   Fetched {len(comments)} comment(s)")
                 else:

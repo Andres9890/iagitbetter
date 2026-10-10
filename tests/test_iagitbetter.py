@@ -57,12 +57,21 @@ class MockRepo:
         self.heads = {"main": MagicMock()}
         self.active_branch = MagicMock(name="main")
         self.remotes = [MagicMock()]
+        self.git = MagicMock()
+        self.git.rev_list.side_effect = lambda *args: (
+            "1" if "--count" in args else "abc123"
+        )
 
-    def iter_commits(self, all=True):
+    def iter_commits(self, all=True, max_count=None):
         # Return mock commits with timestamps
         MockCommit = MagicMock()
         MockCommit.committed_date = 1609459200  # 2021-01-01 00:00:00
         return [MockCommit]
+
+    def commit(self, sha):
+        MockCommit = MagicMock()
+        MockCommit.committed_date = 1609459200
+        return MockCommit
 
     @classmethod
     def clone_from(cls, url, path, **kwargs):
@@ -127,6 +136,164 @@ class GitArchiverTests(unittest.TestCase):
         self.assertEqual(result["repo_name"], "myrepo")
         self.assertEqual(result["domain"], "git.example.com")
 
+    @patch.object(GitArchiver, "_fetch_api_metadata")
+    def test_extract_repo_info_cleans_url(self, _):
+        cases = {
+            "https://github.com/sharpemu/sharpemu/releases": "https://github.com/sharpemu/sharpemu",
+            "https://github.com/a/b/tree/main?tab=readme#top": "https://github.com/a/b",
+            "https://codeberg.org/a/b/src/branch/main": "https://codeberg.org/a/b",
+            "https://gitlab.com/g/sub/proj/-/releases": "https://gitlab.com/g/sub/proj",
+            "https://git.code.sf.net/p/proj/code": "https://git.code.sf.net/p/proj/code",
+            "https://git.kernel.org/pub/scm/git/git.git": "https://git.kernel.org/pub/scm/git/git",
+        }
+        for repo_url, expected in cases.items():
+            self.assertEqual(self.archiver.extract_repo_info(repo_url)["url"], expected)
+
+    @patch.object(GitArchiver, "_fetch_api_metadata")
+    def test_extract_repo_info_removes_credentials(self, _):
+        result = self.archiver.extract_repo_info(
+            "https://user:secret@github.com/testuser/testrepo/releases"
+        )
+
+        self.assertEqual(result["url"], "https://github.com/testuser/testrepo")
+        self.assertEqual(result["domain"], "github.com")
+        self.assertEqual(
+            self.archiver._auth_clone_url,
+            "https://user:secret@github.com/testuser/testrepo",
+        )
+
+    def test_get_license_url(self):
+        self.assertEqual(
+            self.archiver.get_license_url("Creative Commons Zero v1.0 Universal"),
+            "https://creativecommons.org/publicdomain/zero/1.0/",
+        )
+        self.assertEqual(
+            self.archiver.get_license_url("Some License", "BSL-1.0"),
+            "https://opensource.org/license/bsl-1-0",
+        )
+        self.assertIsNone(self.archiver.get_license_url("Other", "NOASSERTION"))
+
+    def test_find_license_file(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            for name in ["COPYING", "LICENSE.md", "README.md"]:
+                with open(os.path.join(temp_dir, name), "w") as f:
+                    f.write("text")
+            with open(os.path.join(temp_dir, "LICENSE"), "w"):
+                pass
+
+            self.assertEqual(self.archiver._find_license_file(temp_dir), "LICENSE.md")
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def test_generate_upload_identifier_is_valid(self):
+        from datetime import datetime
+
+        self.archiver.repo_data = {"owner": "o" * 80, "repo_name": "répo+name" * 5}
+        identifier = self.archiver._generate_upload_identifier(datetime(2026, 1, 2))
+
+        self.assertLessEqual(len(identifier), 100)
+        self.assertRegex(identifier, r"^[A-Za-z0-9._-]+-20260102000000$")
+
+    def test_safe_filename(self):
+        self.assertEqual(
+            self.archiver._safe_filename("../../etc/passwd", "x"), "-..-etc-passwd"
+        )
+        self.assertEqual(self.archiver._safe_filename("..", "x"), "x")
+        self.assertEqual(self.archiver._safe_filename(None, "x"), "x")
+        self.assertEqual(self.archiver._safe_filename("v1.0.0", "x"), "v1.0.0")
+
+    def test_is_profile_url_gist(self):
+        self.assertFalse(
+            self.archiver.is_profile_url(
+                "https://gist.github.com/aa5a315d61ae9438b18d4c1b2c5e1f6a"
+            )
+        )
+        self.assertTrue(
+            self.archiver.is_profile_url("https://gist.github.com/someuser")
+        )
+        self.assertFalse(
+            self.archiver.is_profile_url("https://gist.github.com/someuser/abc123")
+        )
+
+    @requests_mock.Mocker()
+    def test_fetch_user_gists(self, m):
+        from iagitbetter.__main__ import _determine_git_provider
+
+        self.archiver.repo_data = {
+            "domain": "gist.github.com",
+            "git_site": _determine_git_provider("gist.github.com", None),
+        }
+        m.get(
+            "https://api.github.com/users/someuser/gists?per_page=100&page=1",
+            json=[
+                {
+                    "id": "aa5a315d61ae9438b18d4c1b2c5e1f6a",
+                    "html_url": "https://gist.github.com/someuser/aa5a315d61ae9438b18d4c1b2c5e1f6a",
+                    "description": "A gist",
+                    "public": True,
+                    "owner": {"login": "someuser"},
+                }
+            ],
+        )
+
+        gists = self.archiver.fetch_user_repositories("someuser")
+
+        self.assertEqual(len(gists), 1)
+        self.assertEqual(
+            gists[0]["clone_url"],
+            "https://gist.github.com/someuser/aa5a315d61ae9438b18d4c1b2c5e1f6a",
+        )
+        self.assertEqual(
+            gists[0]["full_name"], "someuser/aa5a315d61ae9438b18d4c1b2c5e1f6a"
+        )
+
+    @requests_mock.Mocker()
+    def test_mark_gist_forks(self, m):
+        from iagitbetter.__main__ import _mark_gist_forks
+
+        self.archiver.repo_data = {"domain": "gist.github.com", "git_site": "gist"}
+        m.get("https://api.github.com/gists/aaa", json={"fork_of": {"id": "x"}})
+        m.get("https://api.github.com/gists/bbb", json={"fork_of": None})
+        m.get("https://api.github.com/gists/ccc", status_code=403)
+        m.get("https://api.github.com/gists/ddd", json={"fork_of": {"id": "y"}})
+        gists = [
+            {"name": "aaa", "fork": False},
+            {"name": "bbb", "fork": False},
+            {"name": "ccc", "fork": False},
+            {"name": "ddd", "fork": False},
+        ]
+
+        _mark_gist_forks(self.archiver, gists, verbose=False)
+
+        self.assertEqual([g["fork"] for g in gists], [True, False, False, False])
+        self.assertEqual(
+            [r.url for r in m.request_history][-1], "https://api.github.com/gists/ccc"
+        )
+
+    def test_archive_single_repository_saves_gist_comments(self):
+        from iagitbetter.__main__ import archive_single_repository, parse_args
+
+        archiver = MagicMock()
+        archiver.repo_data = {"git_site": "gist"}
+        archiver.clone_repository.return_value = "/tmp/repo"
+        archiver.upload_to_ia.return_value = ("identifier", {})
+        args = parse_args(["--quiet", "https://gist.github.com/user/abc123"])
+
+        archive_single_repository(archiver, args.giturl, args, verbose=False)
+
+        archiver.save_gist_comments.assert_called_once_with("/tmp/repo")
+
+    def test_parse_args_releases_before_url(self):
+        from iagitbetter.__main__ import parse_args
+
+        args = parse_args(["--releases", "https://github.com/user/repo"])
+        self.assertEqual(args.giturl, "https://github.com/user/repo")
+        self.assertIs(args.releases, True)
+
+        args = parse_args(["--releases", "5", "https://github.com/user/repo"])
+        self.assertEqual(args.releases, 5)
+
     @requests_mock.Mocker()
     def test_fetch_api_metadata_github(self, m):
         """Test fetching metadata from GitHub API"""
@@ -180,6 +347,7 @@ class GitArchiverTests(unittest.TestCase):
         self.assertIsNotNone(repo_path)
         self.assertTrue(os.path.exists(repo_path))
         self.assertTrue(repo_path.endswith("testrepo"))
+        self.assertEqual(self.archiver.repo_data["total_commits"], 1)
 
     def test_clone_repository_with_specific_branch(self):
         """Test cloning a specific branch"""
@@ -1233,6 +1401,35 @@ class ProfileArchiverTests(unittest.TestCase):
         repos = self.archiver.fetch_user_repositories("nonexistent")
 
         self.assertEqual(len(repos), 0)
+
+    @requests_mock.Mocker()
+    def test_fetch_gitlab_group_repos(self, m):
+        self.archiver.repo_data = {
+            "domain": "gitlab.com",
+            "git_site": "gitlab",
+        }
+
+        m.get("https://gitlab.com/api/v4/users?username=mygroup", json=[])
+        m.get("https://gitlab.com/api/v4/groups/mygroup", json={"id": 7})
+        m.get(
+            "https://gitlab.com/api/v4/groups/7/projects?per_page=100&page=1&order_by=updated_at&include_subgroups=true",
+            json=[
+                {
+                    "name": "project1",
+                    "path_with_namespace": "mygroup/sub/project1",
+                    "http_url_to_repo": "https://gitlab.com/mygroup/sub/project1.git",
+                    "web_url": "https://gitlab.com/mygroup/sub/project1",
+                    "forked_from_project": None,
+                    "archived": False,
+                    "visibility": "public",
+                }
+            ],
+        )
+
+        repos = self.archiver.fetch_user_repositories("mygroup")
+
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["full_name"], "mygroup/sub/project1")
 
     @requests_mock.Mocker()
     def test_fetch_self_hosted_gitlab_repos(self, m):
