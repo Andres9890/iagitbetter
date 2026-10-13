@@ -59,6 +59,7 @@ class GiteaProvider(BaseProvider):
             "internal_tracker": api_data.get("internal_tracker", {}),
             "external_tracker": api_data.get("external_tracker", {}),
             "external_wiki": api_data.get("external_wiki", {}),
+            "owner_display_name": (api_data.get("owner") or {}).get("full_name") or "",
             "avatar_url": (
                 api_data.get("owner", {}).get("avatar_url", "")
                 if api_data.get("owner")

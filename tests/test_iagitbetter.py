@@ -307,6 +307,10 @@ class GitArchiverTests(unittest.TestCase):
         m.get(
             "https://api.github.com/repos/testuser/testrepo", json=github_api_response
         )
+        m.get(
+            "https://api.github.com/users/testuser",
+            json={"login": "testuser", "name": "Test User"},
+        )
 
         self.archiver._fetch_api_metadata()
 
@@ -315,6 +319,29 @@ class GitArchiverTests(unittest.TestCase):
         )
         self.assertEqual(self.archiver.repo_data["stars"], 42)
         self.assertEqual(self.archiver.repo_data["language"], "Python")
+        self.assertEqual(self.archiver.repo_data["owner_display_name"], "Test User")
+
+    @requests_mock.Mocker()
+    def test_fetch_api_metadata_github_without_display_name(self, m):
+        """Test GitHub owner with no display name set"""
+        self.archiver.repo_data = {
+            "domain": "github.com",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
+
+        m.get(
+            "https://api.github.com/repos/testuser/testrepo", json=github_api_response
+        )
+        m.get(
+            "https://api.github.com/users/testuser",
+            json={"login": "testuser", "name": None},
+        )
+
+        self.archiver._fetch_api_metadata()
+
+        self.assertNotIn("owner_display_name", self.archiver.repo_data)
 
     @requests_mock.Mocker()
     def test_fetch_api_metadata_gitlab(self, m):
@@ -336,6 +363,27 @@ class GitArchiverTests(unittest.TestCase):
         self.assertEqual(self.archiver.repo_data["description"], "GitLab test project")
         self.assertEqual(self.archiver.repo_data["stars"], 15)
         self.assertEqual(self.archiver.repo_data["project_id"], "12345")
+        self.assertEqual(self.archiver.repo_data["owner_display_name"], "Test Group")
+
+    def test_build_base_metadata_creator(self):
+        """Test creator uses the display name, falling back to the username"""
+        from datetime import datetime
+
+        self.archiver.repo_data = {
+            "url": "https://github.com/testuser/testrepo",
+            "git_site": "github",
+            "owner": "testuser",
+            "repo_name": "testrepo",
+        }
+        args = ("title", "desc", datetime(2024, 1, 1), [], "identifier")
+
+        metadata = self.archiver._build_base_metadata(*args)
+        self.assertEqual(metadata["creator"], "testuser")
+
+        self.archiver.repo_data["owner_display_name"] = "Test User"
+        metadata = self.archiver._build_base_metadata(*args)
+        self.assertEqual(metadata["creator"], "Test User")
+        self.assertEqual(metadata["repoowner"], "https://github.com/testuser")
 
     def test_clone_repository(self):
         """Test cloning a repository"""

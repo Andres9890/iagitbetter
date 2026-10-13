@@ -56,6 +56,7 @@ class GiteeProvider(BaseProvider):
             "clone_url": api_data.get("clone_url", ""),
             "ssh_url": api_data.get("ssh_url", ""),
             "html_url": api_data.get("html_url", ""),
+            "owner_display_name": (api_data.get("owner") or {}).get("name") or "",
             "avatar_url": (
                 api_data.get("owner", {}).get("avatar_url", "")
                 if api_data.get("owner")

@@ -71,6 +71,7 @@ class GitLabProvider(BaseProvider):
             "ssh_url": api_data.get("ssh_url_to_repo", ""),
             "web_url": api_data.get("web_url", ""),
             "namespace": api_data.get("namespace", {}).get("name", ""),
+            "owner_display_name": (api_data.get("namespace") or {}).get("name") or "",
             "path_with_namespace": api_data.get("path_with_namespace", ""),
             "visibility": api_data.get("visibility", "public"),
             "merge_requests_enabled": api_data.get("merge_requests_enabled", False),

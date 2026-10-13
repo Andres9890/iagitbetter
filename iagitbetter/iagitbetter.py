@@ -397,6 +397,7 @@ class GitArchiver:
                     return
                 api_data = response.json()
                 self._parse_api_response(api_data)
+                self._fetch_owner_display_name(provider)
             elif response.status_code == 404:
                 if self.verbose:
                     print(
@@ -415,6 +416,19 @@ class GitArchiver:
         except Exception as e:
             if self.verbose:
                 print(f"   Note: Could not fetch API metadata: {e}")
+
+    def _fetch_owner_display_name(self, provider):
+        """Look up the owner's display name if the repo API response lacked it"""
+        if self.repo_data.get("owner_display_name") or not provider:
+            return
+        owner = self.repo_data.get("owner", "")
+        if not owner or owner == "unknown":
+            return
+        display_name = provider.fetch_owner_display_name(
+            owner, self.repo_data.get("domain", "")
+        )
+        if display_name:
+            self.repo_data["owner_display_name"] = display_name
 
     def _parse_api_response(self, api_data):
         """Parse API response based on the git provider"""
@@ -505,6 +519,8 @@ class GitArchiver:
                 "private": api_data.get("visibility", "public") != "public",
                 "fork": api_data.get("forked_from_project") is not None,
                 "clone_url": api_data.get("http_url_to_repo", ""),
+                "owner_display_name": (api_data.get("namespace") or {}).get("name")
+                or "",
                 "avatar_url": avatar_url,
                 "project_id": (
                     str(api_data.get("id", ""))
@@ -527,6 +543,8 @@ class GitArchiver:
                 "clone_url": api_data.get("links", {})
                 .get("clone", [{}])[0]
                 .get("href", ""),
+                "owner_display_name": (api_data.get("owner") or {}).get("display_name")
+                or "",
                 "avatar_url": (
                     api_data.get("owner", {})
                     .get("links", {})
@@ -553,6 +571,8 @@ class GitArchiver:
                 "private": api_data.get("private", False),
                 "fork": api_data.get("fork", False),
                 "clone_url": api_data.get("clone_url", ""),
+                "owner_display_name": (api_data.get("owner") or {}).get("full_name")
+                or "",
                 "avatar_url": (
                     api_data.get("owner", {}).get("avatar_url", "")
                     if api_data.get("owner")
@@ -1805,7 +1825,8 @@ class GitArchiver:
             "mediatype": "software",
             "collection": "opensource_media",
             "description": description,
-            "creator": self.repo_data["owner"],
+            "creator": self.repo_data.get("owner_display_name")
+            or self.repo_data["owner"],
             "date": repo_date.strftime("%Y-%m-%d"),
             "year": str(repo_date.year),
             "subject": ";".join(subject_tags),

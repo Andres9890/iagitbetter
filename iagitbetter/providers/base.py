@@ -49,6 +49,13 @@ class BaseProvider(ABC):
         """Parse repository API response into standardized format."""
         pass
 
+    def fetch_owner_display_name(self, owner: str, domain: str) -> str:
+        """
+        Fetch the display name of a user/organization.
+        Returns empty string if not implemented or unavailable.
+        """
+        return ""
+
     def fetch_user_repos(self, username: str, domain: str) -> list[dict[str, Any]]:
         """
         Fetch all repositories for a user/organization.

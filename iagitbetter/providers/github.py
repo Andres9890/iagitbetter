@@ -81,6 +81,23 @@ class GitHubProvider(BaseProvider):
             ),
         }
 
+    def fetch_owner_display_name(self, owner: str, domain: str) -> str:
+        """Fetch the display name of a GitHub user/organization."""
+        base_url = (
+            self.api_url.rstrip("/") if self.api_url else "https://api.github.com"
+        )
+        try:
+            response = requests.get(
+                f"{base_url}/users/{owner}",
+                headers=self.get_auth_headers(),
+                timeout=10,
+            )
+            if response.status_code == 200:
+                return (response.json().get("name") or "").strip()
+        except Exception:
+            pass
+        return ""
+
     def fetch_user_repos(self, username: str, domain: str) -> list[dict[str, Any]]:
         """Fetch all repositories from GitHub user/org."""
         repos = []
@@ -268,6 +285,8 @@ class GistProvider(BaseProvider):
             "gist_files": file_list,
             "gist_comments": api_data.get("comments", 0),
         }
+
+    fetch_owner_display_name = GitHubProvider.fetch_owner_display_name
 
     def fetch_user_repos(self, username: str, domain: str) -> list[dict[str, Any]]:
         gists = []
