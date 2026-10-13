@@ -7,8 +7,6 @@ __version_v__ = f"v{__version__}"
 __author__ = "Andres99"
 __license__ = "GPL-3.0"
 
-from .__main__ import main
-
 # Import main components
 from .iagitbetter import GitArchiver, check_for_updates, get_latest_pypi_version
 
@@ -20,3 +18,4 @@ __all__ = [
     "__version__",
     "__version_v__",
 ]
+from .__main__ import main
